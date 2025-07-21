@@ -28,14 +28,18 @@ class RegisterController extends Controller
             return response()->json(['error' => $validator->errors()->first()], 422);
         }
 
+        $exists = User::where('telegram_username', $request->username)->exists();
+        if ($exists) {
+            return response()->json(['error' => 'این کاربر قبلاً ثبت‌نام کرده است.'], 409);
+        }
+
         $user = User::create([
             'name' => $request->name,
             'phone' => $request->phone,
             'city' => $request->city,
-            'email' => $request->username . '@telegram.local', // fake email
             'password' => Hash::make(uniqid()), // random password
             'telegram_user_id' => $request->telegram_user_id,
-            'telegram_username' => $request->telegram_username,
+            'telegram_username' => $request->username,
             'telegram_first_name' => $request->telegram_first_name,
             'telegram_last_name' => $request->telegram_last_name,
             'telegram_language_code' => $request->telegram_language_code,
