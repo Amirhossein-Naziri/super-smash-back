@@ -12,12 +12,11 @@ class RegisterController extends Controller
     public function register(Request $request)
     {
         \Log::info('Register called', $request->all());
-        return response()->json(['msg' => 'register ok']);
         $validator = Validator::make($request->all(), [
             'username' => 'required|string|max:255',
-            'name' => 'required|string|max:255',
-            'phone' => 'required|string|max:20',
-            'city' => 'required|string|max:255',
+            'name' => 'nullable|string|max:255',
+            'phone' => 'nullable|string|max:20',
+            'city' => 'nullable|string|max:255',
             'telegram_user_id' => 'nullable|string|max:255',
             'telegram_username' => 'nullable|string|max:255',
             'telegram_first_name' => 'nullable|string|max:255',
