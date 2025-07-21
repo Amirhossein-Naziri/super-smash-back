@@ -113,4 +113,15 @@ class TelegramBotController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Log error from frontend to a file
+     */
+    public function logError(\Illuminate\Http\Request $request)
+    {
+        $error = $request->input('error');
+        $file = storage_path('logs/telegram-error.log');
+        file_put_contents($file, date('Y-m-d H:i:s') . " - " . $error . "\n", FILE_APPEND);
+        return response()->json(['success' => true]);
+    }
 } 
