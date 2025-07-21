@@ -3,6 +3,7 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\TelegramBotController;
+use App\Http\Controllers\RegisterController;
 
 /*
 |--------------------------------------------------------------------------
@@ -25,3 +26,6 @@ Route::prefix('telegram')->group(function () {
     Route::get('/set-webhook', [TelegramBotController::class, 'setWebhook']);
     Route::get('/bot-info', [TelegramBotController::class, 'getBotInfo']);
 });
+
+// User Registration Route
+Route::post('/register', [RegisterController::class, 'register']);
