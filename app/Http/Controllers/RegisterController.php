@@ -43,4 +43,14 @@ class RegisterController extends Controller
 
         return response()->json(['success' => true, 'user' => $user], 201);
     }
+
+    public function userExists(Request $request)
+    {
+        $username = $request->query('username');
+        $exists = false;
+        if ($username) {
+            $exists = User::where('telegram_username', $username)->exists();
+        }
+        return response()->json(['exists' => $exists]);
+    }
 } 

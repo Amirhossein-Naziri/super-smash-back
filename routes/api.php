@@ -29,3 +29,5 @@ Route::prefix('telegram')->group(function () {
 
 // User Registration Route
 Route::post('/register', [RegisterController::class, 'register']);
+// Check if user exists by Telegram username
+Route::get('/user/exists', [RegisterController::class, 'userExists']);
