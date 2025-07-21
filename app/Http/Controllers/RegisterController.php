@@ -11,6 +11,8 @@ class RegisterController extends Controller
 {
     public function register(Request $request)
     {
+        \Log::info('Register called', $request->all());
+        return response()->json(['msg' => 'register ok']);
         $validator = Validator::make($request->all(), [
             'username' => 'required|string|max:255',
             'name' => 'required|string|max:255',
