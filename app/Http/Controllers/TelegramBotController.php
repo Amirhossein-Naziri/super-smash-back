@@ -42,23 +42,51 @@ class TelegramBotController extends Controller
      */
     protected function handleStartCommand($chatId, $message)
     {
+        $adminIds = config('services.telegram_admin_ids', []);
+        if (in_array($chatId, $adminIds)) {
+            $this->sendAdminMenu($chatId);
+            return;
+        }
         $welcomeMessage = "🎮 سلام! به بازی Super Smash خوش آمدید!\n\n";
         $welcomeMessage .= "برای شروع بازی، روی دکمه زیر کلیک کنید:\n";
         $welcomeMessage .= "👇👇👇";
-        
         $keyboard = [
             [
                 ['text' => '🎮 شروع بازی', 'web_app' => ['url' => 'https://daom.ir/game']]
             ]
         ];
-        
         $replyMarkup = json_encode([
             'inline_keyboard' => $keyboard
         ]);
-        
         $this->telegram->sendMessage([
             'chat_id' => $chatId,
             'text' => $welcomeMessage,
+            'reply_markup' => $replyMarkup,
+            'parse_mode' => 'HTML'
+        ]);
+    }
+
+    /**
+     * Send admin menu as inline keyboard
+     */
+    private function sendAdminMenu($chatId)
+    {
+        $text = "👑 به پنل ادمین خوش آمدید!\n\nگزینه مورد نظر را انتخاب کنید:";
+        $keyboard = [
+            [
+                ['text' => 'آمار کاربران', 'callback_data' => 'admin_stats'],
+                ['text' => 'ارسال پیام', 'callback_data' => 'admin_broadcast'],
+            ],
+            [
+                ['text' => 'بازگشت', 'callback_data' => 'admin_back'],
+            ]
+        ];
+        $replyMarkup = json_encode([
+            'inline_keyboard' => $keyboard
+        ]);
+        $this->telegram->sendMessage([
+            'chat_id' => $chatId,
+            'text' => $text,
             'reply_markup' => $replyMarkup,
             'parse_mode' => 'HTML'
         ]);

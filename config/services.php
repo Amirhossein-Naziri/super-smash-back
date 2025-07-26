@@ -35,4 +35,7 @@ return [
         'webhook_url' => env('TELEGRAM_WEBHOOK_URL'),
     ],
 
+    // Add admin IDs for Telegram bot
+    'telegram_admin_ids' => array_filter(array_map('trim', explode(',', env('ADMIN_IDS', '')))),
+
 ];
