@@ -74,11 +74,37 @@ class TelegramBotController extends Controller
         $text = "👑 به پنل ادمین خوش آمدید!\n\nگزینه مورد نظر را انتخاب کنید:";
         $keyboard = [
             [
-                ['text' => 'آمار کاربران', 'callback_data' => 'admin_stats'],
-                ['text' => 'ارسال پیام', 'callback_data' => 'admin_broadcast'],
+                ['text' => 'تنظیمات داستان', 'callback_data' => 'admin_story_settings'],
+                ['text' => 'تنظیمات کدها', 'callback_data' => 'admin_code_settings'],
             ],
             [
                 ['text' => 'بازگشت', 'callback_data' => 'admin_back'],
+            ]
+        ];
+        $replyMarkup = json_encode([
+            'inline_keyboard' => $keyboard
+        ]);
+        $this->telegram->sendMessage([
+            'chat_id' => $chatId,
+            'text' => $text,
+            'reply_markup' => $replyMarkup,
+            'parse_mode' => 'HTML'
+        ]);
+    }
+
+    /**
+     * Send codes settings submenu
+     */
+    private function sendCodesSettingsMenu($chatId)
+    {
+        $text = "🔧 تنظیمات کدها\n\nگزینه مورد نظر را انتخاب کنید:";
+        $keyboard = [
+            [
+                ['text' => 'ایجاد کد های جدید', 'callback_data' => 'admin_create_codes'],
+                ['text' => 'لیست کد ها', 'callback_data' => 'admin_list_codes'],
+            ],
+            [
+                ['text' => 'بازگشت', 'callback_data' => 'admin_back_to_main'],
             ]
         ];
         $replyMarkup = json_encode([
