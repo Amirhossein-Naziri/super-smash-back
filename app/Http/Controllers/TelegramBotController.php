@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Telegram\Bot\Api;
 use Telegram\Bot\Objects\Update;
+use App\Models\Code;
 
 class TelegramBotController extends Controller
 {
@@ -96,24 +97,134 @@ class TelegramBotController extends Controller
                 ]);
                 break;
             case 'admin_create_codes':
-                // TODO: Implement create codes functionality
-                $this->telegram->sendMessage([
-                    'chat_id' => $chatId,
-                    'text' => 'ایجاد کد های جدید - به زودی...',
-                    'parse_mode' => 'HTML'
-                ]);
+                $this->askForCodeCount($chatId);
                 break;
             case 'admin_list_codes':
-                // TODO: Implement list codes functionality
-                $this->telegram->sendMessage([
-                    'chat_id' => $chatId,
-                    'text' => 'لیست کد ها - به زودی...',
-                    'parse_mode' => 'HTML'
-                ]);
+                $this->showCodesList($chatId);
                 break;
             default:
-                // Unknown callback data
+                // Handle create codes with count
+                if (strpos($callbackData, 'create_codes_') === 0) {
+                    $count = (int) str_replace('create_codes_', '', $callbackData);
+                    $this->createCodes($chatId, $count);
+                }
                 break;
+        }
+    }
+
+    /**
+     * Ask admin for the number of codes to create
+     */
+    private function askForCodeCount($chatId)
+    {
+        $text = "🔧 ایجاد کد های جدید\n\nتعداد کدهایی که می‌خواهید ایجاد شود را انتخاب کنید:";
+        $keyboard = [
+            [
+                ['text' => '5 کد', 'callback_data' => 'create_codes_5'],
+                ['text' => '10 کد', 'callback_data' => 'create_codes_10'],
+            ],
+            [
+                ['text' => '20 کد', 'callback_data' => 'create_codes_20'],
+                ['text' => '50 کد', 'callback_data' => 'create_codes_50'],
+            ],
+            [
+                ['text' => 'بازگشت', 'callback_data' => 'admin_code_settings'],
+            ]
+        ];
+        $replyMarkup = json_encode([
+            'inline_keyboard' => $keyboard
+        ]);
+        $this->telegram->sendMessage([
+            'chat_id' => $chatId,
+            'text' => $text,
+            'reply_markup' => $replyMarkup,
+            'parse_mode' => 'HTML'
+        ]);
+    }
+
+    /**
+     * Create specified number of codes
+     */
+    private function createCodes($chatId, $count)
+    {
+        try {
+            $codes = [];
+            for ($i = 0; $i < $count; $i++) {
+                $code = Code::create([
+                    'code' => Code::generateUniqueCode(),
+                    'is_active' => true
+                ]);
+                $codes[] = $code->code;
+            }
+
+            $text = "✅ {$count} کد جدید با موفقیت ایجاد شد:\n\n";
+            $text .= implode("\n", $codes);
+            $text .= "\n\nکدها فعال هستند و آماده استفاده می‌باشند.";
+
+            $keyboard = [
+                [
+                    ['text' => 'بازگشت به تنظیمات کدها', 'callback_data' => 'admin_code_settings'],
+                ]
+            ];
+            $replyMarkup = json_encode([
+                'inline_keyboard' => $keyboard
+            ]);
+
+            $this->telegram->sendMessage([
+                'chat_id' => $chatId,
+                'text' => $text,
+                'reply_markup' => $replyMarkup,
+                'parse_mode' => 'HTML'
+            ]);
+        } catch (\Exception $e) {
+            $this->telegram->sendMessage([
+                'chat_id' => $chatId,
+                'text' => '❌ خطا در ایجاد کدها: ' . $e->getMessage(),
+                'parse_mode' => 'HTML'
+            ]);
+        }
+    }
+
+    /**
+     * Show list of all codes
+     */
+    private function showCodesList($chatId)
+    {
+        try {
+            $codes = Code::with('user')->orderBy('created_at', 'desc')->get();
+            
+            if ($codes->isEmpty()) {
+                $text = "📋 لیست کدها\n\nهیچ کدی یافت نشد.";
+            } else {
+                $text = "📋 لیست کدها\n\n";
+                foreach ($codes as $code) {
+                    $status = $code->is_active ? "✅ فعال" : "❌ غیرفعال";
+                    $usedBy = $code->user ? "👤 {$code->user->name}" : "🔓 استفاده نشده";
+                    $text .= "🔑 {$code->code} - {$status} - {$usedBy}\n";
+                }
+            }
+
+            $keyboard = [
+                [
+                    ['text' => 'بازگشت به تنظیمات کدها', 'callback_data' => 'admin_code_settings'],
+                ]
+            ];
+            $replyMarkup = json_encode([
+                'inline_keyboard' => $keyboard
+            ]);
+
+            $this->telegram->sendMessage([
+                'chat_id' => $chatId,
+                'text' => $text,
+                'reply_markup' => $replyMarkup,
+                'parse_mode' => 'HTML'
+            ]);
+        } catch (\Exception $e) {
+            $this->telegram->sendMessage([
+                'chat_id' => $chatId,
+                'text' => '❌ خطا در نمایش لیست کدها: ' . $e->getMessage(),
+                'parse_mode' => 'HTML'
+            ]);
         }
     }
 
