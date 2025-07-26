@@ -34,6 +34,15 @@ class TelegramBotController extends Controller
             }
         }
         
+        // Handle callback queries (button clicks)
+        if ($update->has('callback_query')) {
+            $callbackQuery = $update->getCallbackQuery();
+            $chatId = $callbackQuery->getMessage()->getChat()->getId();
+            $callbackData = $callbackQuery->getData();
+            
+            $this->handleCallbackQuery($chatId, $callbackData);
+        }
+        
         return response()->json(['status' => 'ok']);
     }
 
@@ -64,6 +73,48 @@ class TelegramBotController extends Controller
             'reply_markup' => $replyMarkup,
             'parse_mode' => 'HTML'
         ]);
+    }
+
+    /**
+     * Handle callback queries from inline keyboards
+     */
+    private function handleCallbackQuery($chatId, $callbackData)
+    {
+        switch ($callbackData) {
+            case 'admin_code_settings':
+                $this->sendCodesSettingsMenu($chatId);
+                break;
+            case 'admin_back_to_main':
+                $this->sendAdminMenu($chatId);
+                break;
+            case 'admin_story_settings':
+                // TODO: Implement story settings menu
+                $this->telegram->sendMessage([
+                    'chat_id' => $chatId,
+                    'text' => 'تنظیمات داستان - به زودی...',
+                    'parse_mode' => 'HTML'
+                ]);
+                break;
+            case 'admin_create_codes':
+                // TODO: Implement create codes functionality
+                $this->telegram->sendMessage([
+                    'chat_id' => $chatId,
+                    'text' => 'ایجاد کد های جدید - به زودی...',
+                    'parse_mode' => 'HTML'
+                ]);
+                break;
+            case 'admin_list_codes':
+                // TODO: Implement list codes functionality
+                $this->telegram->sendMessage([
+                    'chat_id' => $chatId,
+                    'text' => 'لیست کد ها - به زودی...',
+                    'parse_mode' => 'HTML'
+                ]);
+                break;
+            default:
+                // Unknown callback data
+                break;
+        }
     }
 
     /**
