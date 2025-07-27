@@ -4,6 +4,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\TelegramBotController;
 use App\Http\Controllers\RegisterController;
+use App\Http\Controllers\CodeController;
+use App\Http\Controllers\AuthController;
 
 /*
 |--------------------------------------------------------------------------
@@ -16,8 +18,15 @@ use App\Http\Controllers\RegisterController;
 |
 */
 
-Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
-    return $request->user();
+// Authentication routes
+Route::post('/auth/telegram', [AuthController::class, 'telegramAuth']);
+Route::middleware('auth:sanctum')->group(function () {
+    Route::get('/auth/user', [AuthController::class, 'user']);
+    Route::post('/auth/logout', [AuthController::class, 'logout']);
+    
+    // Code validation routes
+    Route::post('/code/validate', [CodeController::class, 'validateCode']);
+    Route::get('/code/user-codes', [CodeController::class, 'getUserCodes']);
 });
 
 // Telegram Bot Routes
