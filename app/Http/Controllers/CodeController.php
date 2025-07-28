@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\Code;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 
 class CodeController extends Controller
 {
@@ -33,7 +34,7 @@ class CodeController extends Controller
     
 
         $code = $request->input('code');
-        \Log::info('code called', $code);
+        Log::info('code called', $code);
         $user = Auth::user();
 
         // جستجوی کد
