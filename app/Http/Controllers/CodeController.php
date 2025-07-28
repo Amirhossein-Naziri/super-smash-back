@@ -65,7 +65,6 @@ class CodeController extends Controller
         // استفاده از کد و ثبت برای کاربر فعلی
         try {
             $codeModel->update([
-                'user_id' => $user->id,
                 'is_active' => false
             ]);
 
@@ -77,8 +76,6 @@ class CodeController extends Controller
         } catch (\Exception $e) {
             // Log the error with detailed context
             Log::error('Failed to apply code', [
-                'code' => $code,
-                'user_id' => $user->id,
                 'error_message' => $e->getMessage(),
                 'stack_trace' => $e->getTraceAsString()
             ]);
