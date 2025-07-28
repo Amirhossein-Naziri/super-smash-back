@@ -9,46 +9,68 @@ use Illuminate\Support\Facades\Auth;
 class CodeController extends Controller
 {
     /**
-     * Validate and use a code
+     * وضعیت‌های HTTP برای خوانایی بیشتر
+     */
+    const HTTP_OK = 200;
+    const HTTP_BAD_REQUEST = 400;
+    const HTTP_UNAUTHORIZED = 401;
+    const HTTP_NOT_FOUND = 404;
+    const HTTP_SERVER_ERROR = 500;
+
+    /**
+     * اعتبارسنجی و استفاده از کد داستان
      */
     public function validateCode(Request $request)
     {
+        // اعتبارسنجی اولیه ورودی
         $request->validate([
             'code' => 'required|string|max:6'
+        ], [
+            'code.required' => 'وارد کردن کد الزامی است',
+            'code.string' => 'کد باید به صورت رشته باشد',
+            'code.max' => 'کد باید حداکثر ۶ کاراکتر باشد',
         ]);
 
         $code = $request->input('code');
+        $user = Auth::user();
 
-        // Check if code exists
+        // جستجوی کد
         $codeModel = Code::where('code', strtoupper($code))->first();
-        
         if (!$codeModel) {
             return response()->json([
                 'success' => false,
                 'message' => 'کد وارد شده معتبر نیست'
-            ], 404);
+            ], self::HTTP_NOT_FOUND);
         }
 
-        // Check if code is active
+        // بررسی فعال بودن کد
         if (!$codeModel->is_active) {
             return response()->json([
                 'success' => false,
                 'message' => 'این کد غیرفعال شده است'
-            ], 400);
+            ], self::HTTP_BAD_REQUEST);
         }
 
-        // Check if code has already been used
+        // بررسی استفاده شدن کد
         if ($codeModel->user_id !== null) {
             return response()->json([
                 'success' => false,
                 'message' => 'این کد قبلاً استفاده شده است'
-            ], 400);
+            ], self::HTTP_BAD_REQUEST);
         }
 
-        // Use the code (mark as used)
+        // بررسی احراز هویت کاربر (در صورت نیاز)
+        if (!$user) {
+            return response()->json([
+                'success' => false,
+                'message' => 'برای استفاده از کد باید وارد حساب کاربری شوید'
+            ], self::HTTP_UNAUTHORIZED);
+        }
+
+        // استفاده از کد و ثبت برای کاربر فعلی
         try {
             $codeModel->update([
-                'user_id' => 1, // Default user ID
+                'user_id' => $user->id,
                 'is_active' => false
             ]);
 
@@ -56,13 +78,12 @@ class CodeController extends Controller
                 'success' => true,
                 'message' => 'کد با موفقیت اعمال شد',
                 'code' => $codeModel->code
-            ], 200);
-
+            ], self::HTTP_OK);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'خطا در اعمال کد'
-            ], 500);
+                'message' => 'خطا در اعمال کد، لطفاً بعداً تلاش کنید'
+            ], self::HTTP_SERVER_ERROR);
         }
     }
 
