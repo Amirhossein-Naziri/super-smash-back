@@ -31,11 +31,19 @@ class CodeController extends Controller
             'code.string' => 'کد باید به صورت رشته باشد',
             'code.max' => 'کد باید حداکثر ۶ کاراکتر باشد',
         ]);
-    
 
         $code = $request->input('code');
         Log::info('Code validation called', ['code' => $code]);
-        
+
+        $user = Auth::user();
+
+        // بررسی احراز هویت کاربر
+        if (!$user) {
+            return response()->json([
+                'success' => false,
+                'message' => 'برای استفاده از کد باید وارد حساب کاربری شوید'
+            ], self::HTTP_UNAUTHORIZED);
+        }
 
         // جستجوی کد
         $codeModel = Code::where('code', strtoupper($code))->first();
@@ -62,8 +70,6 @@ class CodeController extends Controller
             ], self::HTTP_BAD_REQUEST);
         }
 
-   
-
         // استفاده از کد و ثبت برای کاربر فعلی
         try {
             $codeModel->update([
@@ -77,6 +83,14 @@ class CodeController extends Controller
                 'code' => $codeModel->code
             ], self::HTTP_OK);
         } catch (\Exception $e) {
+            // Log the error with detailed context
+            Log::error('Failed to apply code', [
+                'code' => $code,
+                'user_id' => $user->id,
+                'error_message' => $e->getMessage(),
+                'stack_trace' => $e->getTraceAsString()
+            ]);
+
             return response()->json([
                 'success' => false,
                 'message' => 'خطا در اعمال کد، لطفاً بعداً تلاش کنید'
@@ -95,7 +109,7 @@ class CodeController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'کاربر احراز هویت نشده است'
-            ], 401);
+            ], self::HTTP_UNAUTHORIZED);
         }
 
         $codes = Code::where('user_id', $user->id)
@@ -105,6 +119,6 @@ class CodeController extends Controller
         return response()->json([
             'success' => true,
             'codes' => $codes
-        ], 200);
+        ], self::HTTP_OK);
     }
-} 
+}
