@@ -73,6 +73,36 @@ class AuthController extends Controller
     }
 
     /**
+     * Test login for development
+     */
+    public function testLogin(Request $request)
+    {
+        // Find or create a test user
+        $user = User::where('telegram_user_id', 123456789)->first();
+        
+        if (!$user) {
+            $user = User::create([
+                'name' => 'Test User',
+                'telegram_user_id' => 123456789,
+                'telegram_username' => 'testuser',
+                'telegram_first_name' => 'Test',
+                'telegram_last_name' => 'User',
+                'telegram_language_code' => 'fa',
+                'password' => Hash::make(uniqid()),
+            ]);
+        }
+
+        // Create token
+        $token = $user->createToken('test-auth')->plainTextToken;
+
+        return response()->json([
+            'success' => true,
+            'user' => $user,
+            'token' => $token
+        ]);
+    }
+
+    /**
      * Logout user
      */
     public function logout(Request $request)

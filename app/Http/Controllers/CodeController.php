@@ -18,14 +18,6 @@ class CodeController extends Controller
         ]);
 
         $code = $request->input('code');
-        $user = Auth::user();
-
-        if (!$user) {
-            return response()->json([
-                'success' => false,
-                'message' => 'کاربر احراز هویت نشده است'
-            ], 401);
-        }
 
         // Check if code exists
         $codeModel = Code::where('code', strtoupper($code))->first();
@@ -53,10 +45,10 @@ class CodeController extends Controller
             ], 400);
         }
 
-        // Use the code
+        // Use the code (mark as used)
         try {
             $codeModel->update([
-                'user_id' => $user->id,
+                'user_id' => 1, // Default user ID
                 'is_active' => false
             ]);
 
