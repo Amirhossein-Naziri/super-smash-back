@@ -30,8 +30,10 @@ class CodeController extends Controller
             'code.string' => 'کد باید به صورت رشته باشد',
             'code.max' => 'کد باید حداکثر ۶ کاراکتر باشد',
         ]);
+    
 
         $code = $request->input('code');
+        \Log::info('code called', $code);
         $user = Auth::user();
 
         // جستجوی کد
