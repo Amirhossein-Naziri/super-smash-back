@@ -36,28 +36,6 @@ Route::get('/test/codes', function() {
     return response()->json(['codes' => $codes]);
 });
 
-// Test validation route
-Route::post('/test/validate', function(Request $request) {
-    $code = $request->input('code');
-    
-    // Check if code exists
-    $codeModel = \App\Models\Code::where('code', strtoupper($code))->first();
-    
-    if (!$codeModel) {
-        return response()->json(['success' => false, 'message' => 'کد وارد شده معتبر نیست']);
-    }
-    
-    if (!$codeModel->is_active) {
-        return response()->json(['success' => false, 'message' => 'این کد غیرفعال شده است']);
-    }
-    
-    if ($codeModel->user_id !== null) {
-        return response()->json(['success' => false, 'message' => 'این کد قبلاً استفاده شده است']);
-    }
-    
-    return response()->json(['success' => true, 'message' => 'کد معتبر است']);
-});
-
 // Telegram Bot Routes
 Route::prefix('telegram')->group(function () {
     Route::post('/webhook', [TelegramBotController::class, 'webhook']);
