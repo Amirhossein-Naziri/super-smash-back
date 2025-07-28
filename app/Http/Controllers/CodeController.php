@@ -34,7 +34,7 @@ class CodeController extends Controller
     
 
         $code = $request->input('code');
-        Log::info('code called', $code);
+        Log::info('Code validation called', ['code' => $code]);
         $user = Auth::user();
 
         // جستجوی کد
