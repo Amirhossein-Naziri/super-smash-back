@@ -35,15 +35,7 @@ class CodeController extends Controller
         $code = $request->input('code');
         Log::info('Code validation called', ['code' => $code]);
 
-        $user = Auth::user();
-
-        // بررسی احراز هویت کاربر
-        if (!$user) {
-            return response()->json([
-                'success' => false,
-                'message' => 'برای استفاده از کد باید وارد حساب کاربری شوید'
-            ], self::HTTP_UNAUTHORIZED);
-        }
+     
 
         // جستجوی کد
         $codeModel = Code::where('code', strtoupper($code))->first();
