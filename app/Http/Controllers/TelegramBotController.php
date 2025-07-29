@@ -70,17 +70,38 @@ class TelegramBotController extends Controller
     {
         // Check if admin is in story creation mode
         if (!isset($this->adminStates[$chatId]) || $this->adminStates[$chatId]['mode'] !== 'story_creation') {
+            // Send debug message for non-story creation mode
+            $this->telegram->sendMessage([
+                'chat_id' => $chatId,
+                'text' => "🔍 پیام دریافت شد اما در حالت ساخت داستان نیستید.\nمتن: {$text}",
+                'parse_mode' => 'HTML'
+            ]);
             return;
         }
 
         $state = $this->adminStates[$chatId];
         $waitingFor = $state['waiting_for'] ?? '';
 
+        // Debug: Send current state
+        $this->telegram->sendMessage([
+            'chat_id' => $chatId,
+            'text' => "🔍 حالت فعلی: {$waitingFor}\nمتن دریافتی: {$text}",
+            'parse_mode' => 'HTML'
+        ]);
+
         switch ($waitingFor) {
             case 'points':
                 if (is_numeric($text) && $text > 0) {
                     $this->adminStates[$chatId]['points'] = (int) $text;
                     $this->adminStates[$chatId]['waiting_for'] = 'title';
+                    
+                    // Send confirmation message
+                    $this->telegram->sendMessage([
+                        'chat_id' => $chatId,
+                        'text' => "✅ امتیاز مرحله {$this->adminStates[$chatId]['stage_number']} ثبت شد: {$text}",
+                        'parse_mode' => 'HTML'
+                    ]);
+                    
                     $this->askForStoryDetails($chatId, 1);
                 } else {
                     $this->telegram->sendMessage([
@@ -561,15 +582,13 @@ class TelegramBotController extends Controller
             'current_story' => 1,
             'stories' => [],
             'points' => null,
-            'current_story_data' => []
+            'current_story_data' => [],
+            'waiting_for' => 'points'
         ];
 
         $text = "📚 ساخت داستان جدید\n\n";
         $text .= "شما در حال ساخت مرحله {$nextStageNumber} هستید.\n\n";
         $text .= "برای شروع، ابتدا امتیاز این مرحله را وارد کنید:";
-        
-        // Set waiting for points
-        $this->adminStates[$chatId]['waiting_for'] = 'points';
         
         $keyboard = [
             [
