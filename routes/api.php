@@ -42,6 +42,8 @@ Route::prefix('telegram')->group(function () {
     Route::post('/webhook', [TelegramBotController::class, 'webhook']);
     Route::get('/set-webhook', [TelegramBotController::class, 'setWebhook']);
     Route::get('/bot-info', [TelegramBotController::class, 'getBotInfo']);
+    Route::post('/get-chat-id', [TelegramBotController::class, 'getChatId']);
+    Route::post('/test-admin', [TelegramBotController::class, 'testAdmin']);
 });
 
 // User Registration Route

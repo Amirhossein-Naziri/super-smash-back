@@ -62,7 +62,22 @@ class TelegramBotController extends Controller
      */
     protected function handleStartCommand($chatId, $message)
     {
-        $adminIds = config('telegram.admin_ids', []);
+        // Check both old and new config locations for backward compatibility
+        $adminIds = config('telegram.admin_ids', config('services.telegram_admin_ids', []));
+        
+        // Debug: Log the admin check
+        \Log::info("Admin check for chat ID: {$chatId}", [
+            'admin_ids' => $adminIds,
+            'is_admin' => in_array($chatId, $adminIds)
+        ]);
+        
+        // Temporary: Always show admin menu for debugging
+        if (empty($adminIds)) {
+            \Log::warning("No admin IDs configured. Showing admin menu to chat ID: {$chatId}");
+            $this->adminService->sendAdminMenu($chatId);
+            return;
+        }
+        
         if (in_array($chatId, $adminIds)) {
             $this->adminService->sendAdminMenu($chatId);
             return;
@@ -185,5 +200,44 @@ class TelegramBotController extends Controller
         $file = storage_path('logs/telegram-error.log');
         file_put_contents($file, date('Y-m-d H:i:s') . " - " . $error . "\n", FILE_APPEND);
         return response()->json(['success' => true]);
+    }
+
+    /**
+     * Get current chat ID for admin setup
+     */
+    public function getChatId(Request $request)
+    {
+        $chatId = $request->input('chat_id');
+        if ($chatId) {
+            \Log::info("Chat ID received: {$chatId}");
+            return response()->json([
+                'success' => true,
+                'chat_id' => $chatId,
+                'message' => 'Chat ID logged successfully. Add this ID to your .env file as ADMIN_IDS'
+            ]);
+        }
+        
+        return response()->json([
+            'success' => false,
+            'message' => 'No chat_id provided'
+        ]);
+    }
+
+    /**
+     * Test admin access
+     */
+    public function testAdmin(Request $request)
+    {
+        $chatId = $request->input('chat_id');
+        $adminIds = config('telegram.admin_ids', config('services.telegram_admin_ids', []));
+        
+        return response()->json([
+            'success' => true,
+            'chat_id' => $chatId,
+            'admin_ids' => $adminIds,
+            'is_admin' => in_array($chatId, $adminIds),
+            'config_telegram_admin_ids' => config('telegram.admin_ids', []),
+            'config_services_telegram_admin_ids' => config('services.telegram_admin_ids', [])
+        ]);
     }
 } 
