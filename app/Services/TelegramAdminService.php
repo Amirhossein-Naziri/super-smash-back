@@ -45,6 +45,78 @@ class TelegramAdminService
     }
 
     /**
+     * Show current state for debugging
+     */
+    public function showCurrentState($chatId): void
+    {
+        $state = $this->getAdminState($chatId);
+        
+        if (!$state) {
+            $this->sendMessage($chatId, "🔍 وضعیت فعلی: هیچ حالتی تنظیم نشده است.");
+            return;
+        }
+        
+        $text = "🔍 وضعیت فعلی:\n\n";
+        $text .= "حالت: {$state['mode']}\n";
+        $text .= "انتظار برای: {$state['waiting_for']}\n";
+        
+        if (isset($state['stage_number'])) {
+            $text .= "شماره مرحله: {$state['stage_number']}\n";
+        }
+        
+        if (isset($state['current_story'])) {
+            $text .= "داستان فعلی: {$state['current_story']}\n";
+        }
+        
+        if (isset($state['points'])) {
+            $text .= "امتیاز: {$state['points']}\n";
+        }
+        
+        $keyboard = [
+            [
+                ['text' => '🔄 بازنشانی', 'callback_data' => 'admin_reset_story'],
+                ['text' => 'بازگشت', 'callback_data' => 'admin_story_settings'],
+            ]
+        ];
+        
+        $this->sendMessage($chatId, $text, $keyboard);
+    }
+
+    /**
+     * Reset story creation state
+     */
+    public function resetStoryCreation($chatId): void
+    {
+        $nextStageNumber = Stage::getHighestStageNumber() + 1;
+        
+        $this->setAdminState($chatId, [
+            'mode' => 'story_creation',
+            'stage_number' => $nextStageNumber,
+            'current_story' => 1,
+            'stories' => [],
+            'points' => null,
+            'current_story_data' => [],
+            'waiting_for' => 'points'
+        ]);
+        
+        \Log::info("Story creation state reset", [
+            'chat_id' => $chatId,
+            'stage_number' => $nextStageNumber
+        ]);
+        
+        $text = "📚 ساخت داستان جدید\n\n";
+        $text .= "شما در حال ساخت مرحله {$nextStageNumber} هستید.\n\n";
+        $text .= "برای شروع، ابتدا امتیاز این مرحله را وارد کنید:";
+        
+        $keyboard = [
+            [
+                ['text' => 'لغو', 'callback_data' => 'admin_story_settings'],
+            ]
+        ];
+        $this->sendMessage($chatId, $text, $keyboard);
+    }
+
+    /**
      * Send admin menu
      */
     public function sendAdminMenu($chatId): void
@@ -206,6 +278,17 @@ class TelegramAdminService
     public function handleStoryTextMessage($chatId, $text): void
     {
         $state = $this->getAdminState($chatId);
+        
+        // Debug logging
+        \Log::info("Story text message received", [
+            'chat_id' => $chatId,
+            'text' => $text,
+            'state' => $state,
+            'has_state' => !empty($state),
+            'mode' => $state['mode'] ?? 'no_mode',
+            'waiting_for' => $state['waiting_for'] ?? 'no_waiting'
+        ]);
+        
         if (!$state || $state['mode'] !== 'story_creation') {
             $this->sendMessage($chatId, "🔍 پیام دریافت شد اما در حالت ساخت داستان نیستید.\nمتن: {$text}");
             return;

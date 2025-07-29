@@ -51,6 +51,10 @@ return [
                 ['text' => 'لیست مرحله ها', 'callback_data' => 'admin_list_stages'],
             ],
             [
+                ['text' => '🔍 نمایش وضعیت', 'callback_data' => 'admin_show_state'],
+                ['text' => '🔄 بازنشانی حالت', 'callback_data' => 'admin_reset_story'],
+            ],
+            [
                 ['text' => 'بازگشت', 'callback_data' => 'admin_back_to_main'],
             ]
         ],
