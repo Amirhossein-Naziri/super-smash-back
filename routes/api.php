@@ -6,6 +6,7 @@ use App\Http\Controllers\TelegramBotController;
 use App\Http\Controllers\RegisterController;
 use App\Http\Controllers\CodeController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\GameController;
 
 /*
 |--------------------------------------------------------------------------
@@ -48,3 +49,12 @@ Route::post('/register', [RegisterController::class, 'register']);
 // Check if user exists by Telegram username
 Route::get('/user/exists', [RegisterController::class, 'userExists']);
 Route::post('/log-error', [\App\Http\Controllers\TelegramBotController::class, 'logError']);
+
+// Game Routes
+Route::prefix('game')->group(function () {
+    Route::get('/stages', [GameController::class, 'getStages']);
+    Route::get('/stages/count', [GameController::class, 'getStageCount']);
+    Route::get('/stages/{stageNumber}', [GameController::class, 'getStage']);
+    Route::get('/stages/{stageNumber}/stories', [GameController::class, 'getStageStories']);
+    Route::post('/check-answer', [GameController::class, 'checkAnswer']);
+});
