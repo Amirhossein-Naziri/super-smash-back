@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Code;
 use App\Models\Stage;
 use App\Models\Story;
+use App\Models\AdminState;
 use App\Traits\TelegramMessageTrait;
 use Illuminate\Support\Facades\Storage;
 
@@ -13,7 +14,6 @@ class TelegramAdminService
     use TelegramMessageTrait;
 
     protected $telegram;
-    private $adminStates = [];
 
     public function __construct($telegram)
     {
@@ -25,7 +25,7 @@ class TelegramAdminService
      */
     public function getAdminState($chatId)
     {
-        return $this->adminStates[$chatId] ?? null;
+        return AdminState::getState($chatId);
     }
 
     /**
@@ -33,7 +33,9 @@ class TelegramAdminService
      */
     public function setAdminState($chatId, array $state): void
     {
-        $this->adminStates[$chatId] = $state;
+        // Set expiration to 1 hour from now
+        $expiresAt = now()->addHour();
+        AdminState::setState($chatId, $state, $expiresAt);
     }
 
     /**
@@ -41,7 +43,7 @@ class TelegramAdminService
      */
     public function clearAdminState($chatId): void
     {
-        unset($this->adminStates[$chatId]);
+        AdminState::clearState($chatId);
     }
 
     /**
@@ -72,14 +74,50 @@ class TelegramAdminService
             $text .= "امتیاز: {$state['points']}\n";
         }
         
+        // Add database state info for debugging
+        $dbState = AdminState::where('chat_id', $chatId)->first();
+        if ($dbState) {
+            $text .= "\n📊 وضعیت دیتابیس:\n";
+            $text .= "تاریخ ایجاد: {$dbState->created_at}\n";
+            $text .= "تاریخ انقضا: {$dbState->expires_at}\n";
+        }
+        
         $keyboard = [
             [
                 ['text' => '🔄 بازنشانی', 'callback_data' => 'admin_reset_story'],
+                ['text' => '🔍 دیباگ دیتابیس', 'callback_data' => 'admin_debug_db'],
+            ],
+            [
                 ['text' => 'بازگشت', 'callback_data' => 'admin_story_settings'],
             ]
         ];
         
         $this->sendMessage($chatId, $text, $keyboard);
+    }
+
+    /**
+     * Debug database state
+     */
+    public function debugDatabaseState($chatId): void
+    {
+        $dbStates = AdminState::where('chat_id', $chatId)->get();
+        
+        if ($dbStates->isEmpty()) {
+            $this->sendMessage($chatId, "🔍 هیچ رکوردی در دیتابیس برای این چت یافت نشد.");
+            return;
+        }
+        
+        $text = "🔍 وضعیت دیتابیس برای چت {$chatId}:\n\n";
+        
+        foreach ($dbStates as $index => $dbState) {
+            $text .= "رکورد " . ($index + 1) . ":\n";
+            $text .= "ID: {$dbState->id}\n";
+            $text .= "تاریخ ایجاد: {$dbState->created_at}\n";
+            $text .= "تاریخ انقضا: {$dbState->expires_at}\n";
+            $text .= "داده‌ها: " . json_encode($dbState->state_data, JSON_UNESCAPED_UNICODE) . "\n\n";
+        }
+        
+        $this->sendMessage($chatId, $text);
     }
 
     /**
@@ -89,7 +127,7 @@ class TelegramAdminService
     {
         $nextStageNumber = Stage::getHighestStageNumber() + 1;
         
-        $this->setAdminState($chatId, [
+        $stateData = [
             'mode' => 'story_creation',
             'stage_number' => $nextStageNumber,
             'current_story' => 1,
@@ -97,11 +135,14 @@ class TelegramAdminService
             'points' => null,
             'current_story_data' => [],
             'waiting_for' => 'points'
-        ]);
+        ];
+        
+        $this->setAdminState($chatId, $stateData);
         
         \Log::info("Story creation state reset", [
             'chat_id' => $chatId,
-            'stage_number' => $nextStageNumber
+            'stage_number' => $nextStageNumber,
+            'state_data' => $stateData
         ]);
         
         $text = "📚 ساخت داستان جدید\n\n";
@@ -223,7 +264,7 @@ class TelegramAdminService
             return;
         }
 
-        $this->setAdminState($chatId, [
+        $stateData = [
             'mode' => 'story_creation',
             'stage_number' => $nextStageNumber,
             'current_story' => 1,
@@ -231,6 +272,15 @@ class TelegramAdminService
             'points' => null,
             'current_story_data' => [],
             'waiting_for' => 'points'
+        ];
+        
+        $this->setAdminState($chatId, $stateData);
+        
+        // Debug logging
+        \Log::info("Story creation started", [
+            'chat_id' => $chatId,
+            'stage_number' => $nextStageNumber,
+            'state_data' => $stateData
         ]);
 
         $text = "📚 ساخت داستان جدید\n\n";
@@ -267,8 +317,10 @@ class TelegramAdminService
      */
     private function updateAdminState($chatId, string $key, $value): void
     {
-        if (isset($this->adminStates[$chatId])) {
-            $this->adminStates[$chatId][$key] = $value;
+        $state = $this->getAdminState($chatId);
+        if ($state) {
+            $state[$key] = $value;
+            $this->setAdminState($chatId, $state);
         }
     }
 
@@ -419,7 +471,13 @@ class TelegramAdminService
         $stories[] = $storyData;
         
         $this->updateAdminState($chatId, 'stories', $stories);
-        unset($this->adminStates[$chatId]['current_story_data']);
+        
+        // Clear current_story_data from state
+        $state = $this->getAdminState($chatId);
+        if ($state && isset($state['current_story_data'])) {
+            unset($state['current_story_data']);
+            $this->setAdminState($chatId, $state);
+        }
         
         $status = $isCorrect ? "✅ درست" : "❌ اشتباه";
         $text = "✅ داستان {$storyNumber} با موفقیت ذخیره شد!\n";

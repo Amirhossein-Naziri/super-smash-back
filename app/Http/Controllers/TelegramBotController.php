@@ -122,6 +122,9 @@ class TelegramBotController extends Controller
             case 'admin_show_state':
                 $this->adminService->showCurrentState($chatId);
                 break;
+            case 'admin_debug_db':
+                $this->adminService->debugDatabaseState($chatId);
+                break;
             case 'admin_reset_story':
                 $this->adminService->resetStoryCreation($chatId);
                 break;
