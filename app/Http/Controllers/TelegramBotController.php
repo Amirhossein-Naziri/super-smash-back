@@ -136,6 +136,14 @@ class TelegramBotController extends Controller
                 ]);
                 $this->adminService->sendMessage($chatId, "📸 لطفاً یک عکس ارسال کنید تا تست ذخیره کنیم.");
                 break;
+            case 'admin_test_download':
+                // Set test mode
+                $this->adminService->setAdminState($chatId, [
+                    'mode' => 'test',
+                    'test_mode' => 'download'
+                ]);
+                $this->adminService->sendMessage($chatId, "🔗 لطفاً یک عکس ارسال کنید تا تست دانلود کنیم.");
+                break;
             case 'admin_reset_story':
                 $this->adminService->resetStoryCreation($chatId);
                 break;
