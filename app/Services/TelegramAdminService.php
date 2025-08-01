@@ -409,24 +409,136 @@ class TelegramAdminService
     {
         $state = $this->getAdminState($chatId);
         if (!$state || $state['mode'] !== 'story_creation' || $state['waiting_for'] !== 'image') {
+            \Log::info('Photo received but not in correct state', [
+                'chat_id' => $chatId,
+                'state' => $state,
+                'mode' => $state['mode'] ?? 'no_mode',
+                'waiting_for' => $state['waiting_for'] ?? 'no_waiting'
+            ]);
             return;
         }
 
         try {
             $photos = $message->getPhoto();
+            if (empty($photos)) {
+                throw new \Exception('هیچ عکسی در پیام یافت نشد');
+            }
+            
             $largestPhoto = end($photos);
+            if (!isset($largestPhoto['file_id'])) {
+                throw new \Exception('شناسه فایل عکس یافت نشد');
+            }
+            
             $fileId = $largestPhoto['file_id'];
 
-            $file = $this->telegram->getFile(['file_id' => $fileId]);
-            $filePath = $file['file_path'];
+            // Try multiple methods to get file path
+            $filePath = null;
+            
+            // Method 1: Direct API call
+            try {
+                $file = $this->telegram->getFile(['file_id' => $fileId]);
+                if ($file && is_array($file) && isset($file['file_path'])) {
+                    $filePath = $file['file_path'];
+                }
+            } catch (\Exception $e) {
+                \Log::warning('Method 1 failed', ['error' => $e->getMessage()]);
+            }
+            
+            // Method 2: Check if file_path is in photo array
+            if (!$filePath && isset($largestPhoto['file_path'])) {
+                $filePath = $largestPhoto['file_path'];
+            }
+            
+            // Method 3: Use file_id directly
+            if (!$filePath) {
+                $filePath = $fileId;
+            }
+            
+            if (!$filePath) {
+                throw new \Exception('خطا در دریافت اطلاعات فایل از تلگرام');
+            }
 
+            // Try multiple methods to download image
+            $imageContent = false;
+            
+            // Method 1: Standard URL
             $imageUrl = "https://api.telegram.org/file/bot{$this->telegram->getAccessToken()}/{$filePath}";
             $imageContent = file_get_contents($imageUrl);
+            
+            // Method 2: Alternative URL format
+            if ($imageContent === false) {
+                $alternativeUrl = "https://api.telegram.org/file/bot{$this->telegram->getAccessToken()}/{$fileId}";
+                $imageContent = file_get_contents($alternativeUrl);
+            }
+            
+            // Method 3: Use cURL as fallback
+            if ($imageContent === false) {
+                $ch = curl_init();
+                curl_setopt($ch, CURLOPT_URL, $imageUrl);
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+                curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+                $imageContent = curl_exec($ch);
+                curl_close($ch);
+            }
+            
+            if ($imageContent === false) {
+                throw new \Exception('خطا در دانلود عکس از تلگرام');
+            }
             
             $fileName = 'story_' . time() . '_' . $state['current_story'] . '.jpg';
             $imagePath = 'stories/' . $fileName;
             
-            Storage::disk('public')->put($imagePath, $imageContent);
+            // Try multiple methods to save image
+            $saved = false;
+            
+            // Method 1: Laravel Storage
+            try {
+                $result = Storage::disk('public')->put($imagePath, $imageContent);
+                if ($result) {
+                    $saved = true;
+                }
+            } catch (\Exception $e) {
+                \Log::warning('Storage method 1 failed', ['error' => $e->getMessage()]);
+            }
+            
+            // Method 2: Direct file write
+            if (!$saved) {
+                try {
+                    $fullPath = storage_path('app/public/' . $imagePath);
+                    $directory = dirname($fullPath);
+                    if (!is_dir($directory)) {
+                        mkdir($directory, 0755, true);
+                    }
+                    $result = file_put_contents($fullPath, $imageContent);
+                    if ($result !== false) {
+                        $saved = true;
+                    }
+                } catch (\Exception $e) {
+                    \Log::warning('Storage method 2 failed', ['error' => $e->getMessage()]);
+                }
+            }
+            
+            // Method 3: Public directory
+            if (!$saved) {
+                try {
+                    $publicPath = public_path('storage/' . $imagePath);
+                    $directory = dirname($publicPath);
+                    if (!is_dir($directory)) {
+                        mkdir($directory, 0755, true);
+                    }
+                    $result = file_put_contents($publicPath, $imageContent);
+                    if ($result !== false) {
+                        $saved = true;
+                    }
+                } catch (\Exception $e) {
+                    \Log::warning('Storage method 3 failed', ['error' => $e->getMessage()]);
+                }
+            }
+            
+            if (!$saved) {
+                throw new \Exception('خطا در ذخیره عکس در سرور');
+            }
             
             $storyData = $state['current_story_data'] ?? [];
             $storyData['image_path'] = $imagePath;
@@ -437,6 +549,37 @@ class TelegramAdminService
             $this->askForCorrectChoice($chatId);
             
         } catch (\Exception $e) {
+            \Log::error('Photo handling error', [
+                'chat_id' => $chatId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            // Try to save file_id as fallback
+            try {
+                $photos = $message->getPhoto();
+                if (!empty($photos)) {
+                    $largestPhoto = end($photos);
+                    if (isset($largestPhoto['file_id'])) {
+                        $storyData = $state['current_story_data'] ?? [];
+                        $storyData['file_id'] = $largestPhoto['file_id'];
+                        $storyData['image_path'] = 'pending_' . time() . '.jpg';
+                        
+                        $this->updateAdminState($chatId, 'current_story_data', $storyData);
+                        $this->updateAdminState($chatId, 'waiting_for', 'correct_choice');
+                        
+                        $this->sendMessage($chatId, '⚠️ عکس دریافت شد اما ذخیره نشد. ادامه می‌دهیم...');
+                        $this->askForCorrectChoice($chatId);
+                        return;
+                    }
+                }
+            } catch (\Exception $fallbackError) {
+                \Log::error('Fallback photo handling also failed', [
+                    'chat_id' => $chatId,
+                    'error' => $fallbackError->getMessage()
+                ]);
+            }
+            
             $this->sendErrorMessage($chatId, 'خطا در ذخیره عکس: ' . $e->getMessage());
         }
     }
