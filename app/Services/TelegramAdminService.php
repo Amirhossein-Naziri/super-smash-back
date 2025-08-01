@@ -628,14 +628,16 @@ class TelegramAdminService
     
         try {
             // Log full message structure for debugging
+            $messageArray = $message->toArray();
             \Log::info('Photo message structure', [
                 'chat_id' => $chatId,
                 'message_type' => get_class($message),
-                'message_data' => $message->toArray()
+                'message_data' => $messageArray
             ]);
     
             // Initialize file_id
             $fileId = null;
+            $fileType = null;
     
             // Method 1: Try to get file_id from photo
             $photos = $message->getPhoto();
@@ -643,6 +645,7 @@ class TelegramAdminService
                 $largestPhoto = end($photos);
                 if (isset($largestPhoto['file_id'])) {
                     $fileId = $largestPhoto['file_id'];
+                    $fileType = 'photo';
                     \Log::info('Found file_id from getPhoto()', ['file_id' => $fileId]);
                 }
             }
@@ -652,12 +655,33 @@ class TelegramAdminService
                 $document = $message->getDocument();
                 if ($document && isset($document['file_id']) && $this->isImageDocument($document)) {
                     $fileId = $document['file_id'];
+                    $fileType = 'document';
                     \Log::info('Found file_id from getDocument()', ['file_id' => $fileId]);
+                } else {
+                    \Log::warning('Document received but not a valid image', ['document' => $document]);
                 }
             }
     
+            // Method 3: Check for other media types (for debugging)
             if (!$fileId) {
-                throw new \Exception('شناسه فایل عکس یافت نشد. لطفاً مطمئن شوید که یک عکس معتبر ارسال کرده‌اید.');
+                $unsupportedType = null;
+                if (isset($messageArray['sticker'])) {
+                    $unsupportedType = 'sticker';
+                } elseif (isset($messageArray['video'])) {
+                    $unsupportedType = 'video';
+                } elseif (isset($messageArray['audio'])) {
+                    $unsupportedType = 'audio';
+                } elseif (isset($messageArray['document'])) {
+                    $unsupportedType = 'non-image document';
+                }
+    
+                if ($unsupportedType) {
+                    \Log::warning('Unsupported message type received', ['type' => $unsupportedType, 'message' => $messageArray]);
+                    throw new \Exception("لطفاً یک عکس معتبر (JPG/PNG) ارسال کنید. نوع فایل ارسالی: {$unsupportedType}");
+                } else {
+                    \Log::error('No recognizable file type in message', ['message' => $messageArray]);
+                    throw new \Exception('شناسه فایل عکس یافت نشد. لطفاً یک عکس معتبر (JPG/PNG) ارسال کنید.');
+                }
             }
     
             // Get file_path using getFile API
@@ -695,7 +719,8 @@ class TelegramAdminService
             }
     
             \Log::info('Image downloaded successfully', [
-                'size' => strlen($imageContent)
+                'size' => strlen($imageContent),
+                'file_type' => $fileType
             ]);
     
             // Save image using Laravel Storage
@@ -758,7 +783,7 @@ class TelegramAdminService
                 ]);
             }
     
-            $this->sendErrorMessage($chatId, 'خطا در پردازش عکس: ' . $e->getMessage() . ' لطفاً یک عکس معتبر (JPG/PNG) ارسال کنید.');
+            $this->sendErrorMessage($chatId, 'خطا در پردازش عکس: ' . $e->getMessage());
         }
     }
     
@@ -770,19 +795,32 @@ class TelegramAdminService
      */
     private function isImageDocument($document): bool
     {
-        $validMimeTypes = ['image/jpeg', 'image/png', 'image/gif'];
-        $validExtensions = ['jpg', 'jpeg', 'png', 'gif'];
+        $validMimeTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+        $validExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+    
+        // Log document details for debugging
+        \Log::info('Checking document', ['document' => $document]);
     
         // Check mime_type
-        if (isset($document['mime_type']) && in_array($document['mime_type'], $validMimeTypes)) {
+        if (isset($document['mime_type']) && in_array(strtolower($document['mime_type']), $validMimeTypes)) {
             return true;
         }
     
-
+        // Check file_name extension
         if (isset($document['file_name'])) {
             $extension = strtolower(pathinfo($document['file_name'], PATHINFO_EXTENSION));
-            return in_array($extension, $validExtensions);
+            if (in_array($extension, $validExtensions)) {
+                return true;
+            }
         }
+    
+        // Fallback: Allow documents without mime_type or file_name if they have a valid file_id
+        // This is risky but can help debug issues with unusual documents
+        if (isset($document['file_id'])) {
+            \Log::warning('Document has no recognizable mime_type or extension, allowing for testing', ['document' => $document]);
+            return true;
+        }
+    
         return false;
     }
     /**
