@@ -627,15 +627,17 @@ class TelegramAdminService
         }
     
         try {
-            // Log message structure for debugging
+            // Log full message structure for debugging
             \Log::info('Photo message structure', [
                 'chat_id' => $chatId,
                 'message_type' => get_class($message),
                 'message_data' => $message->toArray()
             ]);
     
-            // Get file_id from getPhoto()
+            // Initialize file_id
             $fileId = null;
+    
+            // Method 1: Try to get file_id from photo
             $photos = $message->getPhoto();
             if (!empty($photos)) {
                 $largestPhoto = end($photos);
@@ -645,8 +647,17 @@ class TelegramAdminService
                 }
             }
     
+            // Method 2: Try to get file_id from document (for compressed photos)
+            if (!$fileId && method_exists($message, 'getDocument')) {
+                $document = $message->getDocument();
+                if ($document && isset($document['file_id']) && $this->isImageDocument($document)) {
+                    $fileId = $document['file_id'];
+                    \Log::info('Found file_id from getDocument()', ['file_id' => $fileId]);
+                }
+            }
+    
             if (!$fileId) {
-                throw new \Exception('شناسه فایل عکس یافت نشد.');
+                throw new \Exception('شناسه فایل عکس یافت نشد. لطفاً مطمئن شوید که یک عکس معتبر ارسال کرده‌اید.');
             }
     
             // Get file_path using getFile API
@@ -714,21 +725,31 @@ class TelegramAdminService
     
             // Fallback: Save file_id and proceed
             try {
+                $fileId = null;
                 $photos = $message->getPhoto();
                 if (!empty($photos)) {
                     $largestPhoto = end($photos);
                     if (isset($largestPhoto['file_id'])) {
-                        $storyData = $state['current_story_data'] ?? [];
-                        $storyData['file_id'] = $largestPhoto['file_id'];
-                        $storyData['image_path'] = 'pending_' . time() . '.jpg';
-    
-                        $this->updateAdminState($chatId, 'current_story_data', $storyData);
-                        $this->updateAdminState($chatId, 'waiting_for', 'correct_choice');
-    
-                        $this->sendMessage($chatId, '⚠️ عکس دریافت شد اما ذخیره نشد. ادامه می‌دهیم...');
-                        $this->askForCorrectChoice($chatId);
-                        return;
+                        $fileId = $largestPhoto['file_id'];
                     }
+                } elseif (method_exists($message, 'getDocument')) {
+                    $document = $message->getDocument();
+                    if ($document && isset($document['file_id']) && $this->isImageDocument($document)) {
+                        $fileId = $document['file_id'];
+                    }
+                }
+    
+                if ($fileId) {
+                    $storyData = $state['current_story_data'] ?? [];
+                    $storyData['file_id'] = $fileId;
+                    $storyData['image_path'] = 'pending_' . time() . '.jpg';
+    
+                    $this->updateAdminState($chatId, 'current_story_data', $storyData);
+                    $this->updateAdminState($chatId, 'waiting_for', 'correct_choice');
+    
+                    $this->sendMessage($chatId, '⚠️ عکس دریافت شد اما ذخیره نشد. ادامه می‌دهیم...');
+                    $this->askForCorrectChoice($chatId);
+                    return;
                 }
             } catch (\Exception $fallbackError) {
                 \Log::error('Fallback photo handling failed', [
@@ -737,8 +758,32 @@ class TelegramAdminService
                 ]);
             }
     
-            $this->sendErrorMessage($chatId, 'خطا در ذخیره عکس: ' . $e->getMessage());
+            $this->sendErrorMessage($chatId, 'خطا در پردازش عکس: ' . $e->getMessage() . ' لطفاً یک عکس معتبر (JPG/PNG) ارسال کنید.');
         }
+    }
+    
+    /**
+     * Check if a document is an image based on mime_type or file_name.
+     *
+     * @param array $document
+     * @return bool
+     */
+    private function isImageDocument($document): bool
+    {
+        $validMimeTypes = ['image/jpeg', 'image/png', 'image/gif'];
+        $validExtensions = ['jpg', 'jpeg', 'png', 'gif'];
+    
+        // Check mime_type
+        if (isset($document['mime_type']) && in_array($document['mime_type'], $validMimeTypes)) {
+            return true;
+        }
+    
+
+        if (isset($document['file_name'])) {
+            $extension = strtolower(pathinfo($document['file_name'], PATHINFO_EXTENSION));
+            return in_array($extension, $validExtensions);
+        }
+        return false;
     }
     /**
      * Ask for correct choice
