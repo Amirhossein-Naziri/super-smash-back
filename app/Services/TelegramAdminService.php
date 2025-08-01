@@ -88,6 +88,7 @@ class TelegramAdminService
                 ['text' => '🔍 دیباگ دیتابیس', 'callback_data' => 'admin_debug_db'],
             ],
             [
+                ['text' => '📸 تست عکس', 'callback_data' => 'admin_test_photo'],
                 ['text' => 'بازگشت', 'callback_data' => 'admin_story_settings'],
             ]
         ];
@@ -118,6 +119,132 @@ class TelegramAdminService
         }
         
         $this->sendMessage($chatId, $text);
+    }
+
+    /**
+     * Debug photo message structure
+     */
+    public function debugPhotoStructure($chatId, $message): void
+    {
+        try {
+            $text = "🔍 ساختار پیام عکس:\n\n";
+            
+            // Get message class
+            $text .= "نوع پیام: " . get_class($message) . "\n\n";
+            
+            // Get message data
+            $messageData = $message->toArray();
+            $text .= "داده‌های پیام:\n";
+            $text .= json_encode($messageData, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) . "\n\n";
+            
+            // Get photos
+            $photos = $message->getPhoto();
+            $text .= "عکس‌ها:\n";
+            $text .= json_encode($photos, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) . "\n\n";
+            
+            // Get largest photo
+            if (!empty($photos)) {
+                $largestPhoto = end($photos);
+                $text .= "بزرگترین عکس:\n";
+                $text .= json_encode($largestPhoto, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) . "\n\n";
+                
+                if (isset($largestPhoto['file_id'])) {
+                    $text .= "✅ file_id یافت شد: " . $largestPhoto['file_id'] . "\n";
+                } else {
+                    $text .= "❌ file_id یافت نشد\n";
+                }
+            }
+            
+            $text .= "\n🔧 برای تست ذخیره عکس، روی دکمه زیر کلیک کنید:";
+            
+            $keyboard = [
+                [
+                    ['text' => '📸 تست ذخیره عکس', 'callback_data' => 'admin_test_save_photo'],
+                ]
+            ];
+            
+            $this->sendMessage($chatId, $text, $keyboard);
+            
+        } catch (\Exception $e) {
+            $this->sendMessage($chatId, "❌ خطا در بررسی ساختار عکس: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Test save photo without file_id
+     */
+    public function testSavePhoto($chatId, $message): void
+    {
+        try {
+            $text = "📸 تست ذخیره عکس بدون file_id...\n\n";
+            
+            // Try to save a dummy image
+            $dummyImageContent = file_get_contents('https://via.placeholder.com/300x200/FF0000/FFFFFF?text=Test+Image');
+            
+            if ($dummyImageContent === false) {
+                throw new \Exception('خطا در دانلود عکس تست');
+            }
+            
+            $fileName = 'test_' . time() . '.jpg';
+            $imagePath = 'stories/' . $fileName;
+            
+            // Try to save
+            $result = Storage::disk('public')->put($imagePath, $dummyImageContent);
+            
+            if ($result) {
+                $text .= "✅ عکس تست با موفقیت ذخیره شد!\n";
+                $text .= "مسیر: {$imagePath}\n";
+                $text .= "حجم: " . strlen($dummyImageContent) . " بایت\n\n";
+                $text .= "مشکل از ذخیره عکس نیست، احتمالاً از دریافت file_id است.";
+            } else {
+                $text .= "❌ خطا در ذخیره عکس تست";
+            }
+            
+            $this->sendMessage($chatId, $text);
+            
+        } catch (\Exception $e) {
+            $this->sendMessage($chatId, "❌ خطا در تست ذخیره عکس: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Save photo without file_id (fallback method)
+     */
+    private function savePhotoWithoutFileId($chatId, $message): void
+    {
+        try {
+            $state = $this->getAdminState($chatId);
+            
+            // Create a placeholder image
+            $imageContent = file_get_contents('https://via.placeholder.com/400x300/CCCCCC/666666?text=Photo+Not+Available');
+            
+            if ($imageContent === false) {
+                throw new \Exception('خطا در ایجاد عکس جایگزین');
+            }
+            
+            $fileName = 'story_' . time() . '_' . ($state['current_story'] ?? 1) . '_placeholder.jpg';
+            $imagePath = 'stories/' . $fileName;
+            
+            // Try to save
+            $result = Storage::disk('public')->put($imagePath, $imageContent);
+            
+            if ($result) {
+                $storyData = $state['current_story_data'] ?? [];
+                $storyData['image_path'] = $imagePath;
+                $storyData['is_placeholder'] = true;
+                
+                $this->updateAdminState($chatId, 'current_story_data', $storyData);
+                $this->updateAdminState($chatId, 'waiting_for', 'correct_choice');
+                
+                $this->sendMessage($chatId, "⚠️ عکس جایگزین ذخیره شد. ادامه می‌دهیم...");
+                $this->askForCorrectChoice($chatId);
+            } else {
+                throw new \Exception('خطا در ذخیره عکس جایگزین');
+            }
+            
+        } catch (\Exception $e) {
+            $this->sendErrorMessage($chatId, 'خطا در ذخیره عکس جایگزین: ' . $e->getMessage());
+        }
     }
 
     /**
@@ -408,28 +535,101 @@ class TelegramAdminService
     public function handlePhotoMessage($chatId, $message): void
     {
         $state = $this->getAdminState($chatId);
-        if (!$state || $state['mode'] !== 'story_creation' || $state['waiting_for'] !== 'image') {
+        
+        // If no state, show photo structure for debugging
+        if (!$state) {
+            $this->debugPhotoStructure($chatId, $message);
+            return;
+        }
+        
+        // If not in story creation mode, show photo structure for debugging
+        if ($state['mode'] !== 'story_creation' || $state['waiting_for'] !== 'image') {
             \Log::info('Photo received but not in correct state', [
                 'chat_id' => $chatId,
                 'state' => $state,
                 'mode' => $state['mode'] ?? 'no_mode',
                 'waiting_for' => $state['waiting_for'] ?? 'no_waiting'
             ]);
+            
+            // Check if we're in test mode
+            if (isset($state['test_mode']) && $state['test_mode'] === 'save_photo') {
+                $this->testSavePhoto($chatId, $message);
+                return;
+            }
+            
+            // Show photo structure for debugging
+            $this->debugPhotoStructure($chatId, $message);
             return;
         }
 
         try {
-            $photos = $message->getPhoto();
-            if (empty($photos)) {
-                throw new \Exception('هیچ عکسی در پیام یافت نشد');
+            // Debug: Log the message structure
+            \Log::info('Photo message structure', [
+                'chat_id' => $chatId,
+                'message_type' => get_class($message),
+                'message_data' => $message->toArray()
+            ]);
+            
+            // Simple approach: try to get file_id directly
+            $fileId = null;
+            
+            // Method 1: Try to get from message array
+            try {
+                $messageArray = $message->toArray();
+                if (isset($messageArray['photo']) && is_array($messageArray['photo'])) {
+                    $photos = $messageArray['photo'];
+                    if (!empty($photos)) {
+                        $largestPhoto = end($photos);
+                        if (isset($largestPhoto['file_id'])) {
+                            $fileId = $largestPhoto['file_id'];
+                            \Log::info('Found file_id from message array', ['file_id' => $fileId]);
+                        }
+                    }
+                }
+            } catch (\Exception $e) {
+                \Log::warning('Method 1 failed', ['error' => $e->getMessage()]);
             }
             
-            $largestPhoto = end($photos);
-            if (!isset($largestPhoto['file_id'])) {
-                throw new \Exception('شناسه فایل عکس یافت نشد');
+            // Method 2: Try getPhoto() method
+            if (!$fileId) {
+                try {
+                    $photos = $message->getPhoto();
+                    if (!empty($photos)) {
+                        $largestPhoto = end($photos);
+                        if (isset($largestPhoto['file_id'])) {
+                            $fileId = $largestPhoto['file_id'];
+                            \Log::info('Found file_id from getPhoto()', ['file_id' => $fileId]);
+                        }
+                    }
+                } catch (\Exception $e) {
+                    \Log::warning('Method 2 failed', ['error' => $e->getMessage()]);
+                }
             }
             
-            $fileId = $largestPhoto['file_id'];
+            // Method 3: Try direct property access
+            if (!$fileId) {
+                try {
+                    if (property_exists($message, 'photo')) {
+                        $photos = $message->photo;
+                        if (!empty($photos)) {
+                            $largestPhoto = end($photos);
+                            if (isset($largestPhoto['file_id'])) {
+                                $fileId = $largestPhoto['file_id'];
+                                \Log::info('Found file_id from direct property', ['file_id' => $fileId]);
+                            }
+                        }
+                    }
+                } catch (\Exception $e) {
+                    \Log::warning('Method 3 failed', ['error' => $e->getMessage()]);
+                }
+            }
+            
+            if (!$fileId) {
+                // As a fallback, try to save without file_id
+                $this->sendMessage($chatId, "⚠️ شناسه فایل عکس یافت نشد. تلاش برای ذخیره بدون file_id...");
+                $this->savePhotoWithoutFileId($chatId, $message);
+                return;
+            }
 
             // Try multiple methods to get file path
             $filePath = null;
@@ -455,7 +655,12 @@ class TelegramAdminService
             }
             
             if (!$filePath) {
-                throw new \Exception('خطا در دریافت اطلاعات فایل از تلگرام');
+                // Try to use file_id directly as fallback
+                $filePath = $fileId;
+                \Log::warning('Using file_id as file_path fallback', [
+                    'file_id' => $fileId,
+                    'file_path' => $filePath
+                ]);
             }
 
             // Try multiple methods to download image
