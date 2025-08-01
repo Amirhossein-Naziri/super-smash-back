@@ -250,7 +250,6 @@ class TelegramBotController extends Controller
             'message' => 'No chat_id provided'
         ]);
     }
-
     /**
      * Test admin access
      */
@@ -268,4 +267,4 @@ class TelegramBotController extends Controller
             'config_services_telegram_admin_ids' => config('services.telegram_admin_ids', [])
         ]);
     }
-} 
+}

@@ -19,7 +19,6 @@ class AuthController extends Controller
             'initData' => 'required|string'
         ]);
 
-        // For now, we'll use a simple approach
         // In production, you should validate the Telegram init data
         $initData = $request->input('initData');
         
