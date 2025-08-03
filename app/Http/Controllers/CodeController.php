@@ -20,92 +20,64 @@ class CodeController extends Controller
 
     /**
      * Validate and redeem a story code
-     * 
-     * @param Request $request
-     * @return \Illuminate\Http\JsonResponse
      */
     public function validateCode(Request $request)
     {
-        // 1. اعتبارسنجی پیشرفته ورودی‌ها
+        // 1. اعتبارسنجی پیشرفته
         $validator = Validator::make($request->all(), [
             'code' => [
                 'required',
                 'string',
-                'size:6',  // دقیقاً 6 کاراکتر
-                'regex:/^[A-Z0-9]+$/'  // فقط حروف بزرگ و اعداد
+                'size:6',
+                'regex:/^[A-Z0-9]+$/',
+                Rule::exists('codes', 'code')->where('is_active', true)
             ],
             'telegram_user_id' => [
                 'required',
-                'numeric',
-                Rule::exists('users', 'telegram_user_id')  // بررسی وجود کاربر
+                'integer',
+                Rule::exists('users', 'telegram_user_id')
             ]
         ], [
             'code.required' => 'وارد کردن کد الزامی است',
             'code.size' => 'کد باید دقیقاً 6 کاراکتر باشد',
             'code.regex' => 'کد فقط می‌تواند شامل حروف انگلیسی بزرگ و اعداد باشد',
+            'code.exists' => 'کد نامعتبر یا غیرفعال است',
             'telegram_user_id.required' => 'شناسه تلگرام الزامی است',
-            'telegram_user_id.numeric' => 'شناسه تلگرام باید عددی باشد',
-            'telegram_user_id.exists' => 'کاربر با این شناسه تلگرام یافت نشد'
+            'telegram_user_id.integer' => 'شناسه تلگرام باید عدد باشد',
+            'telegram_user_id.exists' => 'کاربر یافت نشد'
         ]);
 
         if ($validator->fails()) {
+            Log::error('Validation failed', $validator->errors()->toArray());
             return response()->json([
                 'success' => false,
-                'message' => 'داده‌های ورودی نامعتبر',
+                'message' => 'خطا در اعتبارسنجی داده‌ها',
                 'errors' => $validator->errors()
             ], self::HTTP_BAD_REQUEST);
         }
 
-        // 2. لاگ کامل درخواست
-        Log::info('Code validation request', [
-            'code' => $request->code,
-            'telegram_user_id' => $request->telegram_user_id,
-            'ip' => $request->ip()
-        ]);
-
-        // 3. جستجوی کد در دیتابیس
-        $codeModel = Code::where('code', strtoupper($request->code))->first();
-
-        if (!$codeModel) {
-            Log::warning('Invalid code attempt', ['code' => $request->code]);
-            return response()->json([
-                'success' => false,
-                'message' => 'کد وارد شده معتبر نیست'
-            ], self::HTTP_NOT_FOUND);
-        }
-
-        // 4. بررسی وضعیت کد
-        if (!$codeModel->is_active) {
-            return response()->json([
-                'success' => false,
-                'message' => 'این کد غیرفعال شده است'
-            ], self::HTTP_BAD_REQUEST);
-        }
-
-        if ($codeModel->user_id !== null) {
-            return response()->json([
-                'success' => false,
-                'message' => 'این کد قبلاً استفاده شده است'
-            ], self::HTTP_BAD_REQUEST);
-        }
-
-        // 5. استفاده از کد
+        // 2. یافتن کد و کاربر
         try {
+            $code = Code::where('code', strtoupper($request->code))->first();
             $user = User::where('telegram_user_id', $request->telegram_user_id)->first();
 
-            $codeModel->update([
-                'is_active' => false,
+            // 3. بررسی استفاده نشدن کد
+            if ($code->user_id !== null) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'این کد قبلاً استفاده شده است'
+                ], self::HTTP_BAD_REQUEST);
+            }
+
+            // 4. ثبت استفاده از کد
+            $code->update([
                 'user_id' => $user->id,
-                'used_at' => now()
+                'used_at' => now(),
+                'is_active' => false
             ]);
 
-            // 6. ایجاد توکن احراز هویت
-            $token = $user->createToken('story-game-token', ['view-story'])->plainTextToken;
-
-            Log::info('Code successfully redeemed', [
-                'code' => $codeModel->code,
-                'user_id' => $user->id
-            ]);
+            // 5. ایجاد توکن دسترسی
+            $token = $user->createToken('story-access-token', ['read-story'])->plainTextToken;
 
             return response()->json([
                 'success' => true,
@@ -114,23 +86,18 @@ class CodeController extends Controller
                     'token' => $token,
                     'user' => [
                         'id' => $user->id,
-                        'name' => $user->name,
-                        'level_story' => $user->level_story,
-                        'score' => $user->score
+                        'name' => $user->name
                     ],
-                    'code' => [
-                        'value' => $codeModel->code,
-                        'type' => $codeModel->type
-                    ]
+                    'code' => $code->code
                 ]
             ], self::HTTP_OK);
 
         } catch (\Exception $e) {
-            Log::error('Code redemption failed', [
+            Log::error('Code redemption error', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
-
+            
             return response()->json([
                 'success' => false,
                 'message' => 'خطای سرور در پردازش درخواست'
