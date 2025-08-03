@@ -25,11 +25,14 @@ class CodeController extends Controller
     {
         // اعتبارسنجی اولیه ورودی
         $request->validate([
-            'code' => 'required|string|max:6'
+            'code' => 'required|string|max:6',
+            'telegram_user_id' => 'required|integer'
         ], [
             'code.required' => 'وارد کردن کد الزامی است',
             'code.string' => 'کد باید به صورت رشته باشد',
             'code.max' => 'کد باید حداکثر ۶ کاراکتر باشد',
+            'telegram_user_id.required' => 'شناسه تلگرام کاربر الزامی است',
+            'telegram_user_id.integer' => 'شناسه تلگرام باید عدد باشد',
         ]);
 
         $code = $request->input('code');
@@ -64,14 +67,44 @@ class CodeController extends Controller
 
         // استفاده از کد و ثبت برای کاربر فعلی
         try {
+            // Find user by telegram_user_id from the request
+            $telegramUserId = $request->input('telegram_user_id');
+            
+            if (!$telegramUserId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'شناسه تلگرام کاربر الزامی است'
+                ], self::HTTP_BAD_REQUEST);
+            }
+
+            $user = User::where('telegram_user_id', $telegramUserId)->first();
+            
+            if (!$user) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'کاربر یافت نشد'
+                ], self::HTTP_NOT_FOUND);
+            }
+
             $codeModel->update([
-                'is_active' => false
+                'is_active' => false,
+                'user_id' => $user->id
             ]);
+
+            // Create token for authentication
+            $token = $user->createToken('story-game-token')->plainTextToken;
 
             return response()->json([
                 'success' => true,
                 'message' => 'کد با موفقیت اعمال شد',
-                'code' => $codeModel->code
+                'code' => $codeModel->code,
+                'token' => $token,
+                'user' => [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'level_story' => $user->level_story ?? 1,
+                    'score' => $user->score ?? 0
+                ]
             ], self::HTTP_OK);
         } catch (\Exception $e) {
             // Log the error with detailed context

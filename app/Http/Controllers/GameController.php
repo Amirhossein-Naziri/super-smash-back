@@ -3,118 +3,156 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use App\Models\User;
 use App\Models\Stage;
 use App\Models\Story;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 
 class GameController extends Controller
 {
     /**
-     * Get all stages with their stories
+     * Get current stage and stories for the authenticated user
      */
-    public function getStages()
+    public function getCurrentStage(Request $request)
     {
-        $stages = Stage::with('stories')->orderBy('stage_number')->get();
+        $user = Auth::user();
         
-        return response()->json([
-            'success' => true,
-            'stages' => $stages
-        ]);
-    }
+        if (!$user) {
+            return response()->json([
+                'success' => false,
+                'message' => 'کاربر احراز هویت نشده است'
+            ], 401);
+        }
 
-    /**
-     * Get a specific stage with its stories
-     */
-    public function getStage($stageNumber)
-    {
-        $stage = Stage::with('stories')
-                     ->where('stage_number', $stageNumber)
-                     ->first();
+        // Get current level_story
+        $currentLevel = $user->level_story ?? 1;
+        
+        // Find the stage for current level
+        $stage = Stage::where('stage_number', $currentLevel)->first();
         
         if (!$stage) {
             return response()->json([
                 'success' => false,
-                'message' => 'Stage not found'
+                'message' => 'مرحله مورد نظر یافت نشد'
             ], 404);
         }
-        
-        return response()->json([
-            'success' => true,
-            'stage' => $stage
-        ]);
-    }
 
-    /**
-     * Get stories for a specific stage in random order (for game display)
-     */
-    public function getStageStories($stageNumber)
-    {
-        $stage = Stage::where('stage_number', $stageNumber)->first();
-        
-        if (!$stage) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Stage not found'
-            ], 404);
-        }
-        
+        // Get stories for this stage in random order
         $stories = Story::where('stage_id', $stage->id)
                        ->inRandomOrder()
-                       ->get();
-        
+                       ->get(['id', 'title', 'description', 'image_path', 'is_correct', 'order']);
+
         return response()->json([
             'success' => true,
-            'stage' => $stage,
-            'stories' => $stories
+            'data' => [
+                'stage' => [
+                    'id' => $stage->id,
+                    'stage_number' => $stage->stage_number,
+                    'points' => $stage->points,
+                    'is_completed' => $stage->is_completed
+                ],
+                'stories' => $stories,
+                'user_level' => $currentLevel
+            ]
         ]);
     }
 
     /**
-     * Check if a story answer is correct
+     * Submit answer and update user progress
      */
-    public function checkAnswer(Request $request)
+    public function submitAnswer(Request $request)
     {
         $request->validate([
-            'stage_number' => 'required|integer',
-            'story_id' => 'required|integer'
+            'story_id' => 'required|integer|exists:stories,id'
+        ], [
+            'story_id.required' => 'انتخاب داستان الزامی است',
+            'story_id.integer' => 'شناسه داستان باید عدد باشد',
+            'story_id.exists' => 'داستان مورد نظر یافت نشد'
         ]);
+
+        $user = Auth::user();
         
-        $stage = Stage::where('stage_number', $request->stage_number)->first();
-        
-        if (!$stage) {
+        if (!$user) {
             return response()->json([
                 'success' => false,
-                'message' => 'Stage not found'
-            ], 404);
+                'message' => 'کاربر احراز هویت نشده است'
+            ], 401);
         }
-        
-        $story = Story::where('id', $request->story_id)
-                     ->where('stage_id', $stage->id)
-                     ->first();
+
+        $storyId = $request->input('story_id');
+        $story = Story::find($storyId);
         
         if (!$story) {
             return response()->json([
                 'success' => false,
-                'message' => 'Story not found'
+                'message' => 'داستان مورد نظر یافت نشد'
             ], 404);
         }
+
+        // Check if answer is correct
+        $isCorrect = $story->is_correct;
         
-        return response()->json([
-            'success' => true,
-            'is_correct' => $story->is_correct,
-            'points' => $story->is_correct ? $stage->points : 0
-        ]);
+        if ($isCorrect) {
+            // Update user score and level
+            $user->score = ($user->score ?? 0) + $story->stage->points;
+            $user->level_story = $user->level_story + 1;
+            $user->save();
+
+            // Mark stage as completed
+            $story->stage->update(['is_completed' => true]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'پاسخ درست! به مرحله بعدی می‌روید',
+                'data' => [
+                    'is_correct' => true,
+                    'points_earned' => $story->stage->points,
+                    'new_score' => $user->score,
+                    'new_level' => $user->level_story,
+                    'stage_completed' => true
+                ]
+            ]);
+        } else {
+            return response()->json([
+                'success' => false,
+                'message' => 'پاسخ اشتباه! لطفاً دوباره تلاش کنید',
+                'data' => [
+                    'is_correct' => false,
+                    'correct_story_id' => Story::where('stage_id', $story->stage_id)
+                                               ->where('is_correct', true)
+                                               ->first()->id ?? null
+                ]
+            ]);
+        }
     }
 
     /**
-     * Get total number of stages
+     * Get user progress
      */
-    public function getStageCount()
+    public function getUserProgress(Request $request)
     {
-        $count = Stage::count();
+        $user = Auth::user();
         
+        if (!$user) {
+            return response()->json([
+                'success' => false,
+                'message' => 'کاربر احراز هویت نشده است'
+            ], 401);
+        }
+
+        $totalStages = Stage::count();
+        $completedStages = Stage::where('is_completed', true)->count();
+
         return response()->json([
             'success' => true,
-            'total_stages' => $count
+            'data' => [
+                'current_level' => $user->level_story ?? 1,
+                'score' => $user->score ?? 0,
+                'total_stages' => $totalStages,
+                'completed_stages' => $completedStages,
+                'progress_percentage' => $totalStages > 0 ? round(($completedStages / $totalStages) * 100, 2) : 0
+            ]
         ]);
     }
 } 

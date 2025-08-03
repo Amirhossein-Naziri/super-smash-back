@@ -28,6 +28,7 @@ class User extends Authenticatable
         'telegram_last_name',
         'telegram_language_code',
         'score',
+        'level_story',
     ];
 
     /**
