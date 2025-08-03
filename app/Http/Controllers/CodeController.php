@@ -19,24 +19,48 @@ class CodeController extends Controller
     const HTTP_SERVER_ERROR = 500;
 
     /**
+     * Debug endpoint to check request data
+     */
+    public function debugRequest(Request $request)
+    {
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'all_inputs' => $request->all(),
+                'code' => $request->input('code'),
+                'telegram_user_id' => $request->input('telegram_user_id'),
+                'telegram_user_id_type' => gettype($request->input('telegram_user_id')),
+                'headers' => $request->headers->all(),
+                'method' => $request->method(),
+                'url' => $request->url()
+            ]
+        ]);
+    }
+
+    /**
      * اعتبارسنجی و استفاده از کد داستان
      */
     public function validateCode(Request $request)
     {
-        // اعتبارسنجی اولیه ورودی
+        // اعتبارسنجی اولیه ورودی - موقتاً ساده‌تر
         $request->validate([
             'code' => 'required|string|max:6',
-            'telegram_user_id' => 'required|integer'
+            'telegram_user_id' => 'required'
         ], [
             'code.required' => 'وارد کردن کد الزامی است',
             'code.string' => 'کد باید به صورت رشته باشد',
             'code.max' => 'کد باید حداکثر ۶ کاراکتر باشد',
             'telegram_user_id.required' => 'شناسه تلگرام کاربر الزامی است',
-            'telegram_user_id.integer' => 'شناسه تلگرام باید عدد باشد',
         ]);
 
         $code = $request->input('code');
-        Log::info('Code validation called', ['code' => $code]);
+        $telegramUserId = $request->input('telegram_user_id');
+        Log::info('Code validation called', [
+            'code' => $code,
+            'telegram_user_id' => $telegramUserId,
+            'telegram_user_id_type' => gettype($telegramUserId),
+            'all_inputs' => $request->all()
+        ]);
 
      
 

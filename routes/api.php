@@ -29,6 +29,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
 // Code validation routes (no auth required)
 Route::post('/code/validate', [CodeController::class, 'validateCode']);
+Route::post('/code/debug', [CodeController::class, 'debugRequest']);
 Route::get('/code/user-codes', [CodeController::class, 'getUserCodes']);
 
 // Simple test route
