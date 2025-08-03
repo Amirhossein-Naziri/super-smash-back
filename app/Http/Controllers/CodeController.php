@@ -29,31 +29,21 @@ class CodeController extends Controller
                 'required',
                 'string',
                 'size:6',
-                'regex:/^[A-Z0-9]+$/',
+                'regex:/^(?=.*[A-Z])(?=.*[0-9])[A-Z0-9]+$/',
                 Rule::exists('codes', 'code')->where('is_active', true)
             ],
-            'telegram_user_id' => [
-                'required',
-                'integer',
-                Rule::exists('users', 'telegram_user_id')
-            ]
+            'telegram_user_id' => 'required|integer|exists:users,telegram_user_id'
         ], [
-            'code.required' => 'وارد کردن کد الزامی است',
-            'code.size' => 'کد باید دقیقاً 6 کاراکتر باشد',
-            'code.regex' => 'کد فقط می‌تواند شامل حروف انگلیسی بزرگ و اعداد باشد',
-            'code.exists' => 'کد نامعتبر یا غیرفعال است',
-            'telegram_user_id.required' => 'شناسه تلگرام الزامی است',
-            'telegram_user_id.integer' => 'شناسه تلگرام باید عدد باشد',
-            'telegram_user_id.exists' => 'کاربر یافت نشد'
+            'code.regex' => 'کد باید شامل حداقل یک حرف انگلیسی و یک عدد باشد (مثال: AB12CD)',
+            'code.size' => 'کد باید دقیقاً 6 کاراکتر باشد'
         ]);
-
+    
         if ($validator->fails()) {
-            Log::error('Validation failed', $validator->errors()->toArray());
             return response()->json([
                 'success' => false,
-                'message' => 'خطا در اعتبارسنجی داده‌ها',
-                'errors' => $validator->errors()
-            ], self::HTTP_BAD_REQUEST);
+                'errors' => $validator->errors(),
+                'valid_examples' => ['AB12CD', '1A2B3C'] // مثال‌های معتبر
+            ], 400);
         }
 
         // 2. یافتن کد و کاربر
