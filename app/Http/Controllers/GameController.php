@@ -15,8 +15,8 @@ class GameController extends Controller
      */
     public function getCurrentStage(Request $request)
     {
-        $telegramUserId = $request->query('telegram_user_id');
-        if (!$telegramUserId || !is_numeric($telegramUserId)) {
+        $telegramUserId = (int) $request->query('telegram_user_id'); // Cast to integer
+        if (!$telegramUserId) { // Check if it's 0 or invalid
             return response()->json([
                 'success' => false,
                 'message' => 'آی‌دی تلگرام نامعتبر است'
