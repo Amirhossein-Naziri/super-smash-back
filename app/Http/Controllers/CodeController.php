@@ -29,7 +29,7 @@ class CodeController extends Controller
                 'required',
                 'string',
                 'size:6',
-                'regex:/^(?=.*[A-Z])(?=.*[0-9])[A-Z0-9]+$/',
+                'regex:/^[A-Z0-9]{6}$/',
                 Rule::exists('codes', 'code')->where('is_active', true)
             ],
             'telegram_user_id' => 'required|integer|exists:users,telegram_user_id'
