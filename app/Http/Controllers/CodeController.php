@@ -52,7 +52,7 @@ class CodeController extends Controller
             $user = User::where('telegram_user_id', $request->telegram_user_id)->first();
 
             // 3. بررسی استفاده نشدن کد
-            if ($code->user_id !== null) {
+            if ($code->user_id != null) {
                 return response()->json([
                     'success' => false,
                     'message' => 'این کد قبلاً استفاده شده است'
