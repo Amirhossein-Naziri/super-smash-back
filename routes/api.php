@@ -62,9 +62,8 @@ Route::prefix('game')->group(function () {
     Route::post('/check-answer', [GameController::class, 'checkAnswer']);
 });
 
-// Story Game Routes (requires authentication)
-Route::middleware('auth:sanctum')->prefix('story')->group(function () {
+
     Route::get('/current-stage', [GameController::class, 'getCurrentStage']);
     Route::post('/submit-answer', [GameController::class, 'submitAnswer']);
     Route::get('/progress', [GameController::class, 'getUserProgress']);
-});
+
