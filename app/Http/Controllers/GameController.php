@@ -6,23 +6,29 @@ use Illuminate\Http\Request;
 use App\Models\User;
 use App\Models\Stage;
 use App\Models\Story;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 
 class GameController extends Controller
 {
     /**
-     * Get current stage and stories for the authenticated user
+     * Get current stage and stories for the user
      */
     public function getCurrentStage(Request $request)
     {
-        $user = Auth::user();
-        
+        $telegramUserId = $request->query('telegram_user_id');
+        if (!$telegramUserId || !is_numeric($telegramUserId)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'آی‌دی تلگرام نامعتبر است'
+            ], 400);
+        }
+
+        $user = User::where('telegram_user_id', $telegramUserId)->first();
         if (!$user) {
             return response()->json([
                 'success' => false,
-                'message' => 'کاربر احراز هویت نشده است'
-            ], 401);
+                'message' => 'کاربر یافت نشد'
+            ], 404);
         }
 
         // Get current level_story
@@ -64,20 +70,22 @@ class GameController extends Controller
     public function submitAnswer(Request $request)
     {
         $request->validate([
-            'story_id' => 'required|integer|exists:stories,id'
+            'story_id' => 'required|integer|exists:stories,id',
+            'telegram_user_id' => 'required|numeric'
         ], [
             'story_id.required' => 'انتخاب داستان الزامی است',
             'story_id.integer' => 'شناسه داستان باید عدد باشد',
-            'story_id.exists' => 'داستان مورد نظر یافت نشد'
+            'story_id.exists' => 'داستان مورد نظر یافت نشد',
+            'telegram_user_id.required' => 'آی‌دی تلگرام الزامی است',
+            'telegram_user_id.numeric' => 'آی‌دی تلگرام باید عدد باشد'
         ]);
 
-        $user = Auth::user();
-        
+        $user = User::where('telegram_user_id', $request->telegram_user_id)->first();
         if (!$user) {
             return response()->json([
                 'success' => false,
-                'message' => 'کاربر احراز هویت نشده است'
-            ], 401);
+                'message' => 'کاربر یافت نشد'
+            ], 404);
         }
 
         $storyId = $request->input('story_id');
@@ -132,13 +140,20 @@ class GameController extends Controller
      */
     public function getUserProgress(Request $request)
     {
-        $user = Auth::user();
-        
+        $telegramUserId = $request->query('telegram_user_id');
+        if (!$telegramUserId || !is_numeric($telegramUserId)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'آی‌دی تلگرام نامعتبر است'
+            ], 400);
+        }
+
+        $user = User::where('telegram_user_id', $telegramUserId)->first();
         if (!$user) {
             return response()->json([
                 'success' => false,
-                'message' => 'کاربر احراز هویت نشده است'
-            ], 401);
+                'message' => 'کاربر یافت نشد'
+            ], 404);
         }
 
         $totalStages = Stage::count();
@@ -155,4 +170,4 @@ class GameController extends Controller
             ]
         ]);
     }
-} 
+}
