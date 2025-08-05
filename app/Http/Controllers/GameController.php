@@ -15,6 +15,7 @@ class GameController extends Controller
      */
     public function getCurrentStage(Request $request)
     {
+        $telegramUserId = (int) $request->query('telegram_user_id'); // Cast to integer
         $allParams = $request->all();
         $queryParams = $request->query();
         Log::info('All request params: ' . json_encode($allParams));
