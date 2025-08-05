@@ -683,10 +683,11 @@ class TelegramAdminService
                 throw new \Exception('فایل ارسالی یک تصویر معتبر نیست.');
             }
     
-            // Save to storage
+         // Save to storage
             $fileName = 'story_' . time() . '_' . $state['current_story'] . '.jpg';
-            $imagePath = 'stories/' . $fileName;
-    
+            $relativePath = 'stories/' . $fileName;
+            $baseUrl = 'https://api.daom.ir/storage/'; // URL پایه
+            $imagePath = $baseUrl . $relativePath;
             $saved = Storage::disk('public')->put($imagePath, $imageContent);
             if (!$saved) {
                 throw new \Exception('خطا در ذخیره عکس در سرور.');
