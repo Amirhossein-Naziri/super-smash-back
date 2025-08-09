@@ -126,11 +126,17 @@ class GameController extends Controller
                 ]
             ]);
         } else {
+            // Deduct points for incorrect answer
+            $user->score = ($user->score ?? 0) - $story->stage->points;
+            $user->save();
+
             return response()->json([
                 'success' => false,
                 'message' => 'پاسخ اشتباه! لطفاً دوباره تلاش کنید',
                 'data' => [
                     'is_correct' => false,
+                    'points_deducted' => $story->stage->points,
+                    'new_score' => $user->score,
                     'correct_story_id' => Story::where('stage_id', $story->stage_id)
                                                ->where('is_correct', true)
                                                ->first()->id ?? null
