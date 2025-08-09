@@ -433,6 +433,40 @@ class TelegramAdminService
                     $usedBy = $code->user ? "👤 {$code->user->name}" : "🔓 استفاده نشده";
                     $text .= "🔑 {$code->code} - {$status} - {$usedBy}\n";
                 }
+
+                // تولید فایل اکسل
+                $fileName = 'codes_' . now()->format('Ymd_His') . '.xlsx';
+                $filePath = 'exports/' . $fileName;
+                
+                ExcelFacade::store(new class($codes) implements \Maatwebsite\Excel\Concerns\FromCollection, \Maatwebsite\Excel\Concerns\WithHeadings {
+                    private $codes;
+
+                    public function __construct($codes)
+                    {
+                        $this->codes = $codes;
+                    }
+
+                    public function collection()
+                    {
+                        return $this->codes->map(function ($code) {
+                            return [
+                                'Code' => $code->code,
+                                'Status' => $code->is_active ? 'فعال' : 'غیرفعال',
+                                'Used By' => $code->user ? $code->user->name : 'استفاده نشده',
+                                'Created At' => $code->created_at->format('Y-m-d H:i:s'),
+                            ];
+                        });
+                    }
+
+                    public function headings(): array
+                    {
+                        return ['کد', 'وضعیت', 'استفاده شده توسط', 'تاریخ ایجاد'];
+                    }
+                }, $filePath, 'public');
+
+                // ایجاد لینک دانلود
+                $fileUrl = Storage::disk('public')->url($filePath);
+                $text .= "\n📥 [دانلود فایل اکسل کدها]($fileUrl)";
             }
 
             $keyboard = [
@@ -440,9 +474,9 @@ class TelegramAdminService
                     ['text' => 'بازگشت به تنظیمات کدها', 'callback_data' => 'admin_code_settings'],
                 ]
             ];
-            $this->sendMessage($chatId, $text, $keyboard);
+            $this->sendMessage($chatId, $text, $keyboard, 'Markdown');
         } catch (\Exception $e) {
-            $this->sendErrorMessage($chatId, 'خطا در نمایش لیست کدها: ' . $e->getMessage());
+            $this->sendErrorMessage($chatId, 'خطا در نمایش لیست کدها یا تولید فایل اکسل: ' . $e->getMessage());
         }
     }
 
