@@ -8,6 +8,8 @@ use App\Models\Story;
 use App\Models\AdminState;
 use App\Traits\TelegramMessageTrait;
 use Illuminate\Support\Facades\Storage;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class TelegramAdminService
 {
@@ -434,35 +436,32 @@ class TelegramAdminService
                     $text .= "🔑 {$code->code} - {$status} - {$usedBy}\n";
                 }
 
-                // تولید فایل اکسل
+                // تولید فایل اکسل با PhpSpreadsheet
+                $spreadsheet = new Spreadsheet();
+                $sheet = $spreadsheet->getActiveSheet();
+                
+                // تنظیم سرستون‌ها
+                $sheet->setCellValue('A1', 'کد');
+                $sheet->setCellValue('B1', 'وضعیت');
+                $sheet->setCellValue('C1', 'استفاده شده توسط');
+                $sheet->setCellValue('D1', 'تاریخ ایجاد');
+
+                // پر کردن داده‌ها
+                $row = 2;
+                foreach ($codes as $code) {
+                    $sheet->setCellValue('A' . $row, $code->code);
+                    $sheet->setCellValue('B' . $row, $code->is_active ? 'فعال' : 'غیرفعال');
+                    $sheet->setCellValue('C' . $row, $code->user ? $code->user->name : 'استفاده نشده');
+                    $sheet->setCellValue('D' . $row, $code->created_at->format('Y-m-d H:i:s'));
+                    $row++;
+                }
+
+                // ذخیره فایل اکسل
                 $fileName = 'codes_' . now()->format('Ymd_His') . '.xlsx';
                 $filePath = 'exports/' . $fileName;
-                
-                ExcelFacade::store(new class($codes) implements \Maatwebsite\Excel\Concerns\FromCollection, \Maatwebsite\Excel\Concerns\WithHeadings {
-                    private $codes;
-
-                    public function __construct($codes)
-                    {
-                        $this->codes = $codes;
-                    }
-
-                    public function collection()
-                    {
-                        return $this->codes->map(function ($code) {
-                            return [
-                                'Code' => $code->code,
-                                'Status' => $code->is_active ? 'فعال' : 'غیرفعال',
-                                'Used By' => $code->user ? $code->user->name : 'استفاده نشده',
-                                'Created At' => $code->created_at->format('Y-m-d H:i:s'),
-                            ];
-                        });
-                    }
-
-                    public function headings(): array
-                    {
-                        return ['کد', 'وضعیت', 'استفاده شده توسط', 'تاریخ ایجاد'];
-                    }
-                }, $filePath, 'public');
+                $writer = new Xlsx($spreadsheet);
+                $fullPath = storage_path('app/public/' . $filePath);
+                $writer->save($fullPath);
 
                 // ایجاد لینک دانلود
                 $fileUrl = Storage::disk('public')->url($filePath);
@@ -479,7 +478,6 @@ class TelegramAdminService
             $this->sendErrorMessage($chatId, 'خطا در نمایش لیست کدها یا تولید فایل اکسل: ' . $e->getMessage());
         }
     }
-
     /**
      * Start story creation
      */
