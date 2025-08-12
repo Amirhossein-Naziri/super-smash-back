@@ -42,6 +42,9 @@ return [
                 ['text' => 'لیست کد ها', 'callback_data' => 'admin_list_codes'],
             ],
             [
+                ['text' => '📤 اکسپورت اکسل کدها', 'callback_data' => 'admin_export_codes_excel'],
+            ],
+            [
                 ['text' => 'بازگشت', 'callback_data' => 'admin_back_to_main'],
             ]
         ],

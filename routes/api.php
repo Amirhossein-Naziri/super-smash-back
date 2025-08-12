@@ -7,6 +7,7 @@ use App\Http\Controllers\RegisterController;
 use App\Http\Controllers\CodeController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\GameController;
+use Illuminate\Support\Facades\Response;
 
 /*
 |--------------------------------------------------------------------------
@@ -31,6 +32,7 @@ Route::middleware('auth:sanctum')->group(function () {
 Route::post('/code/validate', [CodeController::class, 'validateCode']);
 Route::post('/code/debug', [CodeController::class, 'debugRequest']);
 Route::get('/code/user-codes', [CodeController::class, 'getUserCodes']);
+Route::get('/code/export/csv', [CodeController::class, 'exportCodesCsv']);
 
 // Simple test route
 Route::get('/test/codes', function() {

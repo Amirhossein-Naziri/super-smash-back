@@ -113,6 +113,9 @@ class TelegramBotController extends Controller
             case 'admin_list_codes':
                 $this->adminService->showCodesList($chatId);
                 break;
+            case 'admin_export_codes_excel':
+                $this->adminService->exportCodesExcelAndSend($chatId);
+                break;
             case 'admin_create_story':
                 $this->adminService->startStoryCreation($chatId);
                 break;

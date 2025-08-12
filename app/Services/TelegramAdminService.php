@@ -7,9 +7,10 @@ use App\Models\Stage;
 use App\Models\Story;
 use App\Models\AdminState;
 use App\Traits\TelegramMessageTrait;
-use Illuminate\Support\Facades\Storage;
+    use Illuminate\Support\Facades\Storage;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+    use Telegram\Bot\FileUpload\InputFile;
 
 class TelegramAdminService
 {
@@ -436,36 +437,7 @@ class TelegramAdminService
                     $text .= "🔑 {$code->code} - {$status} - {$usedBy}\n";
                 }
 
-                // تولید فایل اکسل با PhpSpreadsheet
-                $spreadsheet = new Spreadsheet();
-                $sheet = $spreadsheet->getActiveSheet();
-                
-                // تنظیم سرستون‌ها
-                $sheet->setCellValue('A1', 'کد');
-                $sheet->setCellValue('B1', 'وضعیت');
-                $sheet->setCellValue('C1', 'استفاده شده توسط');
-                $sheet->setCellValue('D1', 'تاریخ ایجاد');
-
-                // پر کردن داده‌ها
-                $row = 2;
-                foreach ($codes as $code) {
-                    $sheet->setCellValue('A' . $row, $code->code);
-                    $sheet->setCellValue('B' . $row, $code->is_active ? 'فعال' : 'غیرفعال');
-                    $sheet->setCellValue('C' . $row, $code->user ? $code->user->name : 'استفاده نشده');
-                    $sheet->setCellValue('D' . $row, $code->created_at->format('Y-m-d H:i:s'));
-                    $row++;
-                }
-
-                // ذخیره فایل اکسل
-                $fileName = 'codes_' . now()->format('Ymd_His') . '.xlsx';
-                $filePath = 'exports/' . $fileName;
-                $writer = new Xlsx($spreadsheet);
-                $fullPath = storage_path('app/public/' . $filePath);
-                $writer->save($fullPath);
-
-                // ایجاد لینک دانلود
-                $fileUrl = Storage::disk('public')->url($filePath);
-                $text .= "\n📥 [دانلود فایل اکسل کدها]($fileUrl)";
+                $text .= "\nبرای دریافت فایل اکسل، روی دکمه زیر بزنید.";
             }
 
             $keyboard = [
@@ -473,9 +445,87 @@ class TelegramAdminService
                     ['text' => 'بازگشت به تنظیمات کدها', 'callback_data' => 'admin_code_settings'],
                 ]
             ];
-            $this->sendMessage($chatId, $text, $keyboard, 'Markdown');
+            // اضافه کردن دکمه دریافت اکسل در صورت وجود کد
+            if (!empty($codes) && $codes->count() > 0) {
+                $keyboard[] = [
+                    ['text' => '📤 ارسال فایل اکسل', 'callback_data' => 'admin_export_codes_excel'],
+                ];
+            }
+
+            $this->sendMessage($chatId, $text, $keyboard);
         } catch (\Exception $e) {
             $this->sendErrorMessage($chatId, 'خطا در نمایش لیست کدها یا تولید فایل اکسل: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Generate Excel file from codes and send it to the admin chat as a document
+     */
+    public function exportCodesExcelAndSend($chatId): void
+    {
+        try {
+            $codes = Code::with('user')->orderBy('created_at', 'desc')->get();
+            if ($codes->isEmpty()) {
+                $this->sendMessage($chatId, 'هیچ کدی برای اکسپورت وجود ندارد.');
+                return;
+            }
+
+            // ساخت فایل اکسل
+            $spreadsheet = new Spreadsheet();
+            $sheet = $spreadsheet->getActiveSheet();
+            $sheet->setTitle('Codes');
+
+            // Header
+            $sheet->setCellValue('A1', 'ID');
+            $sheet->setCellValue('B1', 'Code');
+            $sheet->setCellValue('C1', 'Is Active');
+            $sheet->setCellValue('D1', 'User ID');
+            $sheet->setCellValue('E1', 'User Name');
+            $sheet->setCellValue('F1', 'Telegram Username');
+            $sheet->setCellValue('G1', 'Telegram User ID');
+            $sheet->setCellValue('H1', 'Created At');
+            $sheet->setCellValue('I1', 'Updated At');
+
+            // Rows
+            $row = 2;
+            foreach ($codes as $code) {
+                $user = $code->user;
+                $sheet->setCellValue('A' . $row, $code->id);
+                $sheet->setCellValue('B' . $row, $code->code);
+                $sheet->setCellValue('C' . $row, $code->is_active ? '1' : '0');
+                $sheet->setCellValue('D' . $row, $code->user_id);
+                $sheet->setCellValue('E' . $row, $user ? $user->name : '');
+                $sheet->setCellValue('F' . $row, $user ? $user->telegram_username : '');
+                $sheet->setCellValue('G' . $row, $user ? $user->telegram_user_id : '');
+                $sheet->setCellValue('H' . $row, optional($code->created_at)->format('Y-m-d H:i:s'));
+                $sheet->setCellValue('I' . $row, optional($code->updated_at)->format('Y-m-d H:i:s'));
+                $row++;
+            }
+
+            // ذخیره موقت فایل
+            $fileName = 'codes_' . now()->format('Ymd_His') . '.xlsx';
+            $relativePath = 'exports/' . $fileName;
+            $fullPath = storage_path('app/public/' . $relativePath);
+
+            // اطمینان از وجود دایرکتوری
+            if (!is_dir(dirname($fullPath))) {
+                mkdir(dirname($fullPath), 0775, true);
+            }
+
+            $writer = new Xlsx($spreadsheet);
+            $writer->save($fullPath);
+
+            // ارسال فایل به تلگرام به عنوان document
+            $this->telegram->sendDocument([
+                'chat_id' => $chatId,
+                'document' => InputFile::create($fullPath, $fileName),
+                'caption' => 'فایل اکسل کدها',
+            ]);
+
+            $this->sendSuccessMessage($chatId, 'فایل اکسل ارسال شد.');
+
+        } catch (\Exception $e) {
+            $this->sendErrorMessage($chatId, 'خطا در اکسپورت و ارسال فایل اکسل: ' . $e->getMessage());
         }
     }
     /**
