@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\Storage;
 
 class CodeController extends Controller
 {
@@ -96,56 +97,71 @@ class CodeController extends Controller
     }
 
     /**
+     * Write all codes to a CSV file at the given absolute path
+     */
+    public static function writeCodesCsvToPath(string $fullPath): string
+    {
+        $directory = dirname($fullPath);
+        if (!is_dir($directory)) {
+            mkdir($directory, 0775, true);
+        }
+
+        $handle = fopen($fullPath, 'w');
+        if ($handle === false) {
+            throw new \RuntimeException('Cannot open file for writing: ' . $fullPath);
+        }
+
+        // UTF-8 BOM for Excel (Windows)
+        fprintf($handle, chr(0xEF) . chr(0xBB) . chr(0xBF));
+
+        // Header
+        fputcsv($handle, [
+            'ID',
+            'Code',
+            'Is Active',
+            'User ID',
+            'User Name',
+            'Telegram Username',
+            'Telegram User ID',
+            'Created At',
+            'Updated At',
+        ]);
+
+        foreach (Code::with('user')->cursor() as $code) {
+            $user = $code->user;
+            fputcsv($handle, [
+                $code->id,
+                $code->code,
+                $code->is_active ? '1' : '0',
+                $code->user_id,
+                $user ? $user->name : '',
+                $user ? $user->telegram_username : '',
+                $user ? $user->telegram_user_id : '',
+                optional($code->created_at)->toDateTimeString(),
+                optional($code->updated_at)->toDateTimeString(),
+            ]);
+        }
+
+        fclose($handle);
+
+        return $fullPath;
+    }
+
+    /**
      * Export codes as CSV without external packages
      */
     public function exportCodesCsv()
     {
         $fileName = 'codes_' . now()->format('Ymd_His') . '.csv';
+        $relativePath = 'exports/' . $fileName;
+        $fullPath = storage_path('app/public/' . $relativePath);
+
+        self::writeCodesCsvToPath($fullPath);
 
         $headers = [
             'Content-Type' => 'text/csv; charset=UTF-8',
-            'Content-Disposition' => "attachment; filename=\"{$fileName}\"",
-            'Cache-Control' => 'no-store, no-cache',
         ];
 
-        $callback = function () {
-            $handle = fopen('php://output', 'w');
-
-            // Write UTF-8 BOM for correct display in Excel (Windows)
-            fprintf($handle, chr(0xEF) . chr(0xBB) . chr(0xBF));
-
-            // CSV header row
-            fputcsv($handle, [
-                'ID',
-                'Code',
-                'Is Active',
-                'User ID',
-                'User Name',
-                'Telegram Username',
-                'Telegram User ID',
-                'Created At',
-                'Updated At',
-            ]);
-
-            // Stream data rows
-            foreach (Code::with('user')->cursor() as $code) {
-                $user = $code->user;
-                fputcsv($handle, [
-                    $code->id,
-                    $code->code,
-                    $code->is_active ? '1' : '0',
-                    $code->user_id,
-                    $user ? $user->name : '',
-                    $user ? $user->telegram_username : '',
-                    $user ? $user->telegram_user_id : '',
-                    optional($code->created_at)->toDateTimeString(),
-                    optional($code->updated_at)->toDateTimeString(),
-                ]);
-            }
-
-            fclose($handle);
-        };
-
-        return response()->streamDownload($callback, $fileName, $headers);
+        return response()->download($fullPath, $fileName, $headers)->deleteFileAfterSend(true);
     }
 }
