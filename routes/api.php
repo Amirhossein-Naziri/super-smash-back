@@ -64,6 +64,12 @@ Route::prefix('game')->group(function () {
     Route::post('/check-answer', [GameController::class, 'checkAnswer']);
 });
 
+// Rewards Routes
+Route::prefix('rewards')->group(function () {
+    Route::get('/', [GameController::class, 'getRewards']);
+    Route::get('/active', [GameController::class, 'getActiveRewards']);
+});
+
 
     Route::get('/current-stage', [GameController::class, 'getCurrentStage']);
     Route::post('/submit-answer', [GameController::class, 'submitAnswer']);

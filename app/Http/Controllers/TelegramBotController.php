@@ -107,6 +107,9 @@ class TelegramBotController extends Controller
             case 'admin_story_settings':
                 $this->adminService->sendStorySettingsMenu($chatId);
                 break;
+            case 'admin_reward_settings':
+                $this->adminService->sendRewardSettingsMenu($chatId);
+                break;
             case 'admin_create_codes':
                 $this->adminService->askForCodeCount($chatId);
                 break;
@@ -121,6 +124,12 @@ class TelegramBotController extends Controller
                 break;
             case 'admin_list_stages':
                 $this->adminService->showStagesList($chatId);
+                break;
+            case 'admin_create_reward':
+                $this->adminService->startRewardCreation($chatId);
+                break;
+            case 'admin_list_rewards':
+                $this->adminService->showRewardsList($chatId);
                 break;
             case 'admin_show_state':
                 $this->adminService->showCurrentState($chatId);

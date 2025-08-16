@@ -33,6 +33,9 @@ return [
                 ['text' => 'تنظیمات کدها', 'callback_data' => 'admin_code_settings'],
             ],
             [
+                ['text' => '🎁 مدیریت جایزه‌ها', 'callback_data' => 'admin_reward_settings'],
+            ],
+            [
                 ['text' => 'بازگشت', 'callback_data' => 'admin_back'],
             ]
         ],
@@ -78,6 +81,15 @@ return [
             [
                 ['text' => '✅ درست', 'callback_data' => 'story_correct_true'],
                 ['text' => '❌ اشتباه', 'callback_data' => 'story_correct_false'],
+            ]
+        ],
+        'reward_settings' => [
+            [
+                ['text' => '🎁 ساخت جایزه جدید', 'callback_data' => 'admin_create_reward'],
+                ['text' => '📋 لیست جایزه‌ها', 'callback_data' => 'admin_list_rewards'],
+            ],
+            [
+                ['text' => 'بازگشت', 'callback_data' => 'admin_back_to_main'],
             ]
         ],
     ],

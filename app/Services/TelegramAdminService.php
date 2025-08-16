@@ -6,6 +6,7 @@ use App\Models\Code;
 use App\Models\Stage;
 use App\Models\Story;
 use App\Models\AdminState;
+use App\Models\Reward;
 use App\Traits\TelegramMessageTrait;
     use Illuminate\Support\Facades\Storage;
     use Telegram\Bot\FileUpload\InputFile;
@@ -380,6 +381,15 @@ class TelegramAdminService
     }
 
     /**
+     * Send reward settings menu
+     */
+    public function sendRewardSettingsMenu($chatId): void
+    {
+        $text = "🎁 مدیریت جایزه‌ها\n\nگزینه مورد نظر را انتخاب کنید:";
+        $this->sendMessage($chatId, $text, config('telegram.keyboards.reward_settings'));
+    }
+
+    /**
      * Ask for code count
      */
     public function askForCodeCount($chatId): void
@@ -560,14 +570,14 @@ class TelegramAdminService
     }
 
     /**
-     * Handle text message during story creation
+     * Handle text message during story creation or reward creation
      */
     public function handleStoryTextMessage($chatId, $text): void
     {
         $state = $this->getAdminState($chatId);
         
         // Debug logging
-        \Log::info("Story text message received", [
+        \Log::info("Text message received", [
             'chat_id' => $chatId,
             'text' => $text,
             'state' => $state,
@@ -576,22 +586,33 @@ class TelegramAdminService
             'waiting_for' => $state['waiting_for'] ?? 'no_waiting'
         ]);
         
-        if (!$state || $state['mode'] !== 'story_creation') {
-            $this->sendMessage($chatId, "🔍 پیام دریافت شد اما در حالت ساخت داستان نیستید.\nمتن: {$text}");
+        if (!$state) {
+            $this->sendMessage($chatId, "🔍 پیام دریافت شد اما در هیچ حالتی نیستید.\nمتن: {$text}");
             return;
         }
 
+        $mode = $state['mode'] ?? '';
         $waitingFor = $state['waiting_for'] ?? '';
 
-        switch ($waitingFor) {
-            case 'points':
-                $this->handlePointsInput($chatId, $text);
+        switch ($mode) {
+            case 'story_creation':
+                switch ($waitingFor) {
+                    case 'points':
+                        $this->handlePointsInput($chatId, $text);
+                        break;
+                    case 'title':
+                        $this->handleTitleInput($chatId, $text);
+                        break;
+                    case 'description':
+                        $this->handleDescriptionInput($chatId, $text);
+                        break;
+                }
                 break;
-            case 'title':
-                $this->handleTitleInput($chatId, $text);
+            case 'reward_creation':
+                $this->handleRewardTextMessage($chatId, $text);
                 break;
-            case 'description':
-                $this->handleDescriptionInput($chatId, $text);
+            default:
+                $this->sendMessage($chatId, "🔍 پیام دریافت شد اما در حالت مناسبی نیستید.\nمتن: {$text}");
                 break;
         }
     }
@@ -643,30 +664,58 @@ class TelegramAdminService
     {
         $state = $this->getAdminState($chatId);
     
-        // If no state or not in story creation mode, debug and return
-        if (!$state || $state['mode'] !== 'story_creation' || $state['waiting_for'] !== 'image') {
-            \Log::info('Photo received but not in correct state', [
-                'chat_id' => $chatId,
-                'state' => $state,
-                'mode' => $state['mode'] ?? 'no_mode',
-                'waiting_for' => $state['waiting_for'] ?? 'no_waiting'
+        // If no state, debug and return
+        if (!$state) {
+            \Log::info('Photo received but no state', [
+                'chat_id' => $chatId
             ]);
-    
-            // Handle test modes
-            if (isset($state['test_mode'])) {
-                if ($state['test_mode'] === 'save_photo') {
-                    $this->testSavePhoto($chatId, $message);
-                    return;
-                } elseif ($state['test_mode'] === 'download') {
-                    $this->testFileDownload($chatId, $message);
-                    return;
-                }
-            }
-    
             $this->debugPhotoStructure($chatId, $message);
             return;
         }
+
+        $mode = $state['mode'] ?? '';
+        $waitingFor = $state['waiting_for'] ?? '';
     
+        // Handle story creation photos
+        if ($mode === 'story_creation' && $waitingFor === 'image') {
+            $this->handleStoryPhotoMessage($chatId, $message);
+            return;
+        }
+        
+        // Handle reward creation photos
+        if ($mode === 'reward_creation' && $waitingFor === 'image') {
+            $this->handleRewardPhotoMessage($chatId, $message);
+            return;
+        }
+    
+        // Handle test modes
+        if (isset($state['test_mode'])) {
+            if ($state['test_mode'] === 'save_photo') {
+                $this->testSavePhoto($chatId, $message);
+                return;
+            } elseif ($state['test_mode'] === 'download') {
+                $this->testFileDownload($chatId, $message);
+                return;
+            }
+        }
+    
+        \Log::info('Photo received but not in correct state', [
+            'chat_id' => $chatId,
+            'state' => $state,
+            'mode' => $mode,
+            'waiting_for' => $waitingFor
+        ]);
+    
+        $this->debugPhotoStructure($chatId, $message);
+    }
+
+    /**
+     * Handle story photo message (extracted from original handlePhotoMessage)
+     */
+    private function handleStoryPhotoMessage($chatId, $message): void
+    {
+        $state = $this->getAdminState($chatId);
+        
         try {
             // Convert message to array for better debugging
             $messageArray = $message->toArray();
@@ -724,7 +773,7 @@ class TelegramAdminService
                 throw new \Exception('فایل ارسالی یک تصویر معتبر نیست.');
             }
     
-         // Save to storage
+            // Save to storage
             $fileName = 'story_' . time() . '_' . $state['current_story'] . '.jpg';
             $relativePath = 'stories/' . $fileName;
             $baseUrl = 'https://api.daom.ir/storage/'; // URL پایه
@@ -943,6 +992,265 @@ class TelegramAdminService
         $keyboard = [
             [
                 ['text' => 'بازگشت به لیست', 'callback_data' => 'admin_list_stages'],
+            ]
+        ];
+        $this->sendMessage($chatId, $text, $keyboard);
+    }
+
+    /**
+     * Start reward creation
+     */
+    public function startRewardCreation($chatId): void
+    {
+        $stateData = [
+            'mode' => 'reward_creation',
+            'waiting_for' => 'title'
+        ];
+        
+        $this->setAdminState($chatId, $stateData);
+        
+        $text = "🎁 ساخت جایزه جدید\n\n";
+        $text .= "برای شروع، عنوان جایزه را وارد کنید:";
+        
+        $keyboard = [
+            [
+                ['text' => 'لغو', 'callback_data' => 'admin_reward_settings'],
+            ]
+        ];
+        $this->sendMessage($chatId, $text, $keyboard);
+    }
+
+    /**
+     * Handle reward text message
+     */
+    public function handleRewardTextMessage($chatId, $text): void
+    {
+        $state = $this->getAdminState($chatId);
+        
+        if (!$state || $state['mode'] !== 'reward_creation') {
+            return;
+        }
+
+        $waitingFor = $state['waiting_for'] ?? '';
+
+        switch ($waitingFor) {
+            case 'title':
+                $this->handleRewardTitleInput($chatId, $text);
+                break;
+            case 'description':
+                $this->handleRewardDescriptionInput($chatId, $text);
+                break;
+            case 'score':
+                $this->handleRewardScoreInput($chatId, $text);
+                break;
+        }
+    }
+
+    /**
+     * Handle reward title input
+     */
+    private function handleRewardTitleInput($chatId, $text): void
+    {
+        $this->updateAdminState($chatId, 'current_reward_data', ['title' => $text]);
+        $this->updateAdminState($chatId, 'waiting_for', 'description');
+        $this->sendMessage($chatId, '📝 حالا توضیحات جایزه را وارد کنید:');
+    }
+
+    /**
+     * Handle reward description input
+     */
+    private function handleRewardDescriptionInput($chatId, $text): void
+    {
+        $state = $this->getAdminState($chatId);
+        $rewardData = $state['current_reward_data'] ?? [];
+        $rewardData['description'] = $text;
+        
+        $this->updateAdminState($chatId, 'current_reward_data', $rewardData);
+        $this->updateAdminState($chatId, 'waiting_for', 'score');
+        $this->sendMessage($chatId, '🎯 حالا امتیاز جایزه را وارد کنید:');
+    }
+
+    /**
+     * Handle reward score input
+     */
+    private function handleRewardScoreInput($chatId, $text): void
+    {
+        if (is_numeric($text) && $text > 0) {
+            $state = $this->getAdminState($chatId);
+            $rewardData = $state['current_reward_data'] ?? [];
+            $rewardData['score'] = (int) $text;
+            
+            $this->updateAdminState($chatId, 'current_reward_data', $rewardData);
+            $this->updateAdminState($chatId, 'waiting_for', 'image');
+            $this->sendMessage($chatId, '🖼️ حالا عکس جایزه را ارسال کنید:');
+        } else {
+            $this->sendErrorMessage($chatId, 'لطفاً یک عدد مثبت وارد کنید.');
+        }
+    }
+
+    /**
+     * Handle reward photo message
+     */
+    public function handleRewardPhotoMessage($chatId, $message): void
+    {
+        $state = $this->getAdminState($chatId);
+    
+        if (!$state || $state['mode'] !== 'reward_creation' || $state['waiting_for'] !== 'image') {
+            return;
+        }
+    
+        try {
+            $messageArray = $message->toArray();
+            $fileId = null;
+            $fileType = null;
+    
+            // Check for photo in message
+            if (isset($messageArray['photo']) && is_array($messageArray['photo'])) {
+                $largestPhoto = end($messageArray['photo']);
+                if (isset($largestPhoto['file_id'])) {
+                    $fileId = $largestPhoto['file_id'];
+                    $fileType = 'photo';
+                }
+            }
+            // Check for document
+            elseif (isset($messageArray['document'])) {
+                $document = $messageArray['document'];
+                if ($this->isImageDocument($document)) {
+                    $fileId = $document['file_id'];
+                    $fileType = 'document';
+                } else {
+                    throw new \Exception('لطفاً یک عکس معتبر (JPG/PNG) ارسال کنید.');
+                }
+            }
+    
+            if (!$fileId) {
+                throw new \Exception('شناسه فایل عکس یافت نشد. لطفاً یک عکس معتبر ارسال کنید.');
+            }
+    
+            // Get file info from Telegram
+            $fileResponse = $this->telegram->getFile(['file_id' => $fileId]);
+    
+            if (!isset($fileResponse['file_path'])) {
+                throw new \Exception('مسیر فایل از API تلگرام دریافت نشد.');
+            }
+    
+            $filePath = $fileResponse['file_path'];
+            $imageUrl = "https://api.telegram.org/file/bot{$this->telegram->getAccessToken()}/{$filePath}";
+    
+            // Download image content
+            $imageContent = file_get_contents($imageUrl);
+            if ($imageContent === false) {
+                throw new \Exception('خطا در دانلود عکس از تلگرام.');
+            }
+    
+            // Validate image content
+            if (!@imagecreatefromstring($imageContent)) {
+                throw new \Exception('فایل ارسالی یک تصویر معتبر نیست.');
+            }
+    
+            // Save to storage
+            $fileName = 'reward_' . time() . '.jpg';
+            $relativePath = 'rewards/' . $fileName;
+            $baseUrl = 'https://api.daom.ir/storage/';
+            $imagePath = $baseUrl . $relativePath;
+            $saved = Storage::disk('public')->put($imagePath, $imageContent);
+            
+            if (!$saved) {
+                throw new \Exception('خطا در ذخیره عکس در سرور.');
+            }
+    
+            // Create reward
+            $state = $this->getAdminState($chatId);
+            $rewardData = $state['current_reward_data'] ?? [];
+            $rewardData['image_path'] = $imagePath;
+            
+            $reward = Reward::create([
+                'title' => $rewardData['title'],
+                'description' => $rewardData['description'],
+                'image_path' => $rewardData['image_path'],
+                'score' => $rewardData['score'],
+                'is_active' => true
+            ]);
+    
+            $text = "✅ جایزه جدید با موفقیت ایجاد شد!\n\n";
+            $text .= "🎁 عنوان: {$reward->title}\n";
+            $text .= "📝 توضیحات: {$reward->description}\n";
+            $text .= "🎯 امتیاز: {$reward->score}\n";
+            $text .= "🖼️ عکس: ذخیره شد\n\n";
+            $text .= "آیا می‌خواهید جایزه دیگری بسازید؟";
+    
+            $keyboard = [
+                [
+                    ['text' => 'بله، جایزه دیگر', 'callback_data' => 'admin_create_reward'],
+                    ['text' => 'بازگشت به منو', 'callback_data' => 'admin_reward_settings'],
+                ]
+            ];
+            $this->sendMessage($chatId, $text, $keyboard);
+    
+            $this->clearAdminState($chatId);
+    
+        } catch (\Exception $e) {
+            $this->sendErrorMessage($chatId, '❌ خطا در پردازش عکس جایزه: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Show rewards list
+     */
+    public function showRewardsList($chatId): void
+    {
+        $rewards = Reward::orderBy('score', 'desc')->get();
+        
+        if ($rewards->isEmpty()) {
+            $text = "🎁 لیست جایزه‌ها\n\nهیچ جایزه‌ای یافت نشد.";
+            $keyboard = [
+                [
+                    ['text' => 'بازگشت', 'callback_data' => 'admin_reward_settings'],
+                ]
+            ];
+        } else {
+            $text = "🎁 لیست جایزه‌ها\n\n";
+            
+            foreach ($rewards as $reward) {
+                $status = $reward->is_active ? "✅ فعال" : "❌ غیرفعال";
+                $text .= "🎁 {$reward->title} - {$reward->score} امتیاز - {$status}\n";
+                if ($reward->description) {
+                    $text .= "   📝 {$reward->description}\n";
+                }
+                $text .= "\n";
+            }
+            
+            $keyboard = [
+                [
+                    ['text' => 'بازگشت', 'callback_data' => 'admin_reward_settings'],
+                ]
+            ];
+        }
+
+        $this->sendMessage($chatId, $text, $keyboard);
+    }
+
+    /**
+     * Toggle reward status
+     */
+    public function toggleRewardStatus($chatId, $rewardId): void
+    {
+        $reward = Reward::find($rewardId);
+        
+        if (!$reward) {
+            $this->sendErrorMessage($chatId, 'جایزه یافت نشد.');
+            return;
+        }
+
+        $reward->is_active = !$reward->is_active;
+        $reward->save();
+
+        $status = $reward->is_active ? "✅ فعال" : "❌ غیرفعال";
+        $text = "🎁 وضعیت جایزه '{$reward->title}' تغییر کرد به: {$status}";
+
+        $keyboard = [
+            [
+                ['text' => 'بازگشت به لیست', 'callback_data' => 'admin_list_rewards'],
             ]
         ];
         $this->sendMessage($chatId, $text, $keyboard);

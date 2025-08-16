@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use App\Models\User;
 use App\Models\Stage;
 use App\Models\Story;
+use App\Models\Reward;
 use Illuminate\Support\Facades\Log;
 
 class GameController extends Controller
@@ -178,6 +179,32 @@ class GameController extends Controller
                 'completed_stages' => $completedStages,
                 'progress_percentage' => $totalStages > 0 ? round(($completedStages / $totalStages) * 100, 2) : 0
             ]
+        ]);
+    }
+
+    /**
+     * Get all rewards
+     */
+    public function getRewards()
+    {
+        $rewards = Reward::orderBy('score', 'desc')->get();
+        
+        return response()->json([
+            'success' => true,
+            'data' => $rewards
+        ]);
+    }
+
+    /**
+     * Get active rewards only
+     */
+    public function getActiveRewards()
+    {
+        $rewards = Reward::active()->orderBy('score', 'desc')->get();
+        
+        return response()->json([
+            'success' => true,
+            'data' => $rewards
         ]);
     }
 }
