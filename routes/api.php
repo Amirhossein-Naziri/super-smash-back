@@ -7,6 +7,7 @@ use App\Http\Controllers\RegisterController;
 use App\Http\Controllers\CodeController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\GameController;
+use App\Http\Controllers\RewardController;
 use Illuminate\Support\Facades\Response;
 
 /*
@@ -68,6 +69,8 @@ Route::prefix('game')->group(function () {
 Route::prefix('rewards')->group(function () {
     Route::get('/', [GameController::class, 'getRewards']);
     Route::get('/active', [GameController::class, 'getActiveRewards']);
+    Route::get('/eligibility', [RewardController::class, 'eligibility']);
+    Route::post('/claim', [RewardController::class, 'claim']);
 });
 
 
