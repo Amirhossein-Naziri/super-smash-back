@@ -24,11 +24,24 @@ class StagePhotoController extends Controller
                 return response()->json(['error' => 'کاربر احراز هویت نشده'], 401);
             }
 
+            // Check if there are any stages in the database
+            $totalStages = Stage::count();
+            if ($totalStages === 0) {
+                return response()->json([
+                    'error' => 'هیچ مرحله‌ای در سیستم وجود ندارد',
+                    'debug' => 'No stages found in database'
+                ], 404);
+            }
+
             // Get next incomplete stage for user
             $stage = UserStageProgress::getNextIncompleteStage($user->id);
             
             if (!$stage) {
-                return response()->json(['message' => 'همه مراحل تکمیل شده‌اند'], 200);
+                return response()->json([
+                    'message' => 'همه مراحل تکمیل شده‌اند',
+                    'debug' => 'All stages completed for user',
+                    'total_stages' => $totalStages
+                ], 200);
             }
 
             // Get photos for this stage
@@ -64,6 +77,12 @@ class StagePhotoController extends Controller
                     'unlocked_photos_count' => $progress->unlocked_photos_count,
                     'completed_voice_recordings' => $progress->completed_voice_recordings,
                     'stage_completed' => $progress->stage_completed
+                ],
+                'debug' => [
+                    'total_stages' => $totalStages,
+                    'photos_count' => $photos->count(),
+                    'user_id' => $user->id,
+                    'stage_id' => $stage->id
                 ]
             ]);
 
