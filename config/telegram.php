@@ -53,8 +53,11 @@ return [
         ],
         'story_settings' => [
             [
-                ['text' => 'ساخت داستان جدید', 'callback_data' => 'admin_create_story'],
-                ['text' => 'لیست مرحله ها', 'callback_data' => 'admin_list_stages'],
+                ['text' => '📸 ساخت مرحله جدید (سیستم جدید)', 'callback_data' => 'admin_start_stage_photo_upload'],
+                ['text' => '📚 ساخت داستان (سیستم قدیم)', 'callback_data' => 'admin_create_story'],
+            ],
+            [
+                ['text' => '📋 لیست مرحله ها', 'callback_data' => 'admin_list_stages'],
             ],
             [
                 ['text' => '🔍 نمایش وضعیت', 'callback_data' => 'admin_show_state'],

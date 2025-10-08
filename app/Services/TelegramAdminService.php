@@ -52,7 +52,7 @@ class TelegramAdminService
     }
 
     /**
-     * Show current state for debugging
+     * Show current state (updated for new system)
      */
     public function showCurrentState($chatId): void
     {
@@ -73,6 +73,14 @@ class TelegramAdminService
         
         if (isset($state['current_story'])) {
             $text .= "داستان فعلی: {$state['current_story']}\n";
+        }
+        
+        if (isset($state['current_photo'])) {
+            $text .= "عکس فعلی: {$state['current_photo']}\n";
+        }
+        
+        if (isset($state['photos_uploaded'])) {
+            $text .= "عکس‌های آپلود شده: {$state['photos_uploaded']}/6\n";
         }
         
         if (isset($state['points'])) {
@@ -572,6 +580,46 @@ class TelegramAdminService
     }
 
     /**
+     * Handle text messages (updated for new system)
+     */
+    public function handleTextMessage($chatId, $text): void
+    {
+        $state = $this->getAdminState($chatId);
+        
+        if (!$state) {
+            $this->sendMessage($chatId, "لطفاً از منوی ادمین استفاده کنید.");
+            return;
+        }
+        
+        $mode = $state['mode'] ?? '';
+        $waitingFor = $state['waiting_for'] ?? '';
+        
+        // Handle stage photo upload text inputs
+        if ($mode === 'stage_photo_upload') {
+            if ($waitingFor === 'stage_title') {
+                $this->handleStageTitleInput($chatId, $text);
+            } elseif ($waitingFor === 'stage_points') {
+                $this->handleStagePointsInput($chatId, $text);
+            }
+            return;
+        }
+        
+        // Handle old story creation system (for backward compatibility)
+        if ($mode === 'story_creation') {
+            $this->handleStoryTextMessage($chatId, $text);
+            return;
+        }
+        
+        // Handle reward creation
+        if ($mode === 'reward_creation') {
+            $this->handleRewardTextMessage($chatId, $text);
+            return;
+        }
+        
+        $this->sendMessage($chatId, "لطفاً از منوی ادمین استفاده کنید.");
+    }
+
+    /**
      * Handle text message during story creation or reward creation
      */
     public function handleStoryTextMessage($chatId, $text): void
@@ -940,11 +988,11 @@ class TelegramAdminService
     }
 
     /**
-     * Show stages list
+     * Show stages list (updated for new system)
      */
     public function showStagesList($chatId): void
     {
-        $stages = Stage::with('stories')->orderBy('stage_number')->get();
+        $stages = Stage::with(['stories', 'photos'])->orderBy('stage_number')->get();
         
         if ($stages->isEmpty()) {
             $text = config('telegram.messages.no_stages_found');
@@ -959,7 +1007,20 @@ class TelegramAdminService
             
             foreach ($stages as $stage) {
                 $status = $stage->is_completed ? "✅" : "⏳";
+                $storiesCount = $stage->stories->count();
+                $photosCount = $stage->photos->count();
+                
                 $text .= "{$status} مرحله {$stage->stage_number} - {$stage->points} امتیاز\n";
+                
+                if ($photosCount > 0) {
+                    $text .= "   📸 {$photosCount} عکس (سیستم جدید)\n";
+                } elseif ($storiesCount > 0) {
+                    $text .= "   📚 {$storiesCount} داستان (سیستم قدیم)\n";
+                } else {
+                    $text .= "   ⚠️ بدون محتوا\n";
+                }
+                
+                $text .= "\n";
                 
                 $keyboard[] = [
                     ['text' => "مرحله {$stage->stage_number}", 'callback_data' => "view_stage_{$stage->id}"]
@@ -975,11 +1036,11 @@ class TelegramAdminService
     }
 
     /**
-     * Show stage details
+     * Show stage details (updated for new system)
      */
     public function showStageDetails($chatId, $stageId): void
     {
-        $stage = Stage::with('stories')->find($stageId);
+        $stage = Stage::with(['stories', 'photos'])->find($stageId);
         
         if (!$stage) {
             $this->sendErrorMessage($chatId, 'مرحله یافت نشد.');
@@ -988,13 +1049,29 @@ class TelegramAdminService
 
         $text = "📖 جزئیات مرحله {$stage->stage_number}\n\n";
         $text .= "📊 امتیاز: {$stage->points}\n";
-        $text .= "📚 داستان‌ها:\n\n";
+        $text .= "📈 وضعیت: " . ($stage->is_completed ? "✅ تکمیل شده" : "⏳ در انتظار") . "\n\n";
 
-        foreach ($stage->stories as $story) {
-            $status = $story->is_correct ? "✅ درست" : "❌ اشتباه";
-            $text .= "🔹 {$story->title}\n";
-            $text .= "   {$story->description}\n";
-            $text .= "   {$status}\n\n";
+        // Show photos if using new system
+        if ($stage->photos->count() > 0) {
+            $text .= "📸 عکس‌های مرحله (سیستم جدید):\n\n";
+            foreach ($stage->photos as $photo) {
+                $status = $photo->is_unlocked ? "🔓 باز شده" : "🔒 قفل شده";
+                $text .= "🔹 عکس {$photo->photo_order}\n";
+                $text .= "   کد ۱: {$photo->code_1}\n";
+                $text .= "   کد ۲: {$photo->code_2}\n";
+                $text .= "   وضعیت: {$status}\n\n";
+            }
+        }
+
+        // Show stories if using old system
+        if ($stage->stories->count() > 0) {
+            $text .= "📚 داستان‌های مرحله (سیستم قدیم):\n\n";
+            foreach ($stage->stories as $story) {
+                $status = $story->is_correct ? "✅ درست" : "❌ اشتباه";
+                $text .= "🔹 {$story->title}\n";
+                $text .= "   {$story->description}\n";
+                $text .= "   {$status}\n\n";
+            }
         }
 
         $keyboard = [

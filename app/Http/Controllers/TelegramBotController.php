@@ -36,7 +36,7 @@ class TelegramBotController extends Controller
             if ($text === '/start') {
                 $this->handleStartCommand($chatId, $message);
             } else {
-                $this->adminService->handleStoryTextMessage($chatId, $text);
+                $this->adminService->handleTextMessage($chatId, $text);
             }
         }
         
@@ -121,6 +121,9 @@ class TelegramBotController extends Controller
                 break;
             case 'admin_create_story':
                 $this->adminService->startStoryCreation($chatId);
+                break;
+            case 'admin_start_stage_photo_upload':
+                $this->adminService->startStagePhotoUpload($chatId);
                 break;
             case 'admin_list_stages':
                 $this->adminService->showStagesList($chatId);
