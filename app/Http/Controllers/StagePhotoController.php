@@ -14,6 +14,60 @@ use Illuminate\Support\Facades\Storage;
 class StagePhotoController extends Controller
 {
     /**
+     * Debug getNextIncompleteStage method
+     */
+    public function debugNextStage(Request $request)
+    {
+        try {
+            $user = Auth::user();
+            if (!$user) {
+                return response()->json(['error' => 'کاربر احراز هویت نشده'], 401);
+            }
+
+            $userId = $user->id;
+            
+            // Test each step
+            $userProgressCount = UserStageProgress::where('user_id', $userId)->count();
+            $firstStage = Stage::orderBy('stage_number')->first();
+            $allStages = Stage::orderBy('stage_number')->get();
+            
+            $nextStage = UserStageProgress::getNextIncompleteStage($userId);
+
+            return response()->json([
+                'user_id' => $userId,
+                'user_progress_count' => $userProgressCount,
+                'first_stage' => $firstStage ? [
+                    'id' => $firstStage->id,
+                    'stage_number' => $firstStage->stage_number,
+                    'points' => $firstStage->points
+                ] : null,
+                'all_stages' => $allStages->map(function($stage) {
+                    return [
+                        'id' => $stage->id,
+                        'stage_number' => $stage->stage_number,
+                        'points' => $stage->points
+                    ];
+                }),
+                'next_stage_result' => $nextStage ? [
+                    'id' => $nextStage->id,
+                    'stage_number' => $nextStage->stage_number,
+                    'points' => $nextStage->points
+                ] : null,
+                'debug' => [
+                    'method_logic' => $userProgressCount === 0 ? 'Return first stage' : 'Check completed stages',
+                    'stages_count' => $allStages->count()
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Debug failed: ' . $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ], 500);
+        }
+    }
+
+    /**
      * Test database connection and data
      */
     public function testDatabase(Request $request)

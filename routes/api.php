@@ -81,6 +81,7 @@ Route::prefix('stage-photos')->middleware('auth:sanctum')->group(function () {
     Route::post('/upload-voice', [StagePhotoController::class, 'uploadVoiceRecording']);
     Route::get('/completion-status', [StagePhotoController::class, 'getStageCompletionStatus']);
     Route::get('/test-database', [StagePhotoController::class, 'testDatabase']);
+    Route::get('/debug-next-stage', [StagePhotoController::class, 'debugNextStage']);
     Route::post('/create-test-stage', [StagePhotoController::class, 'createTestStage']);
 });
 
