@@ -8,6 +8,7 @@ use App\Http\Controllers\CodeController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\GameController;
 use App\Http\Controllers\RewardController;
+use App\Http\Controllers\StagePhotoController;
 use Illuminate\Support\Facades\Response;
 
 /*
@@ -71,6 +72,14 @@ Route::prefix('rewards')->group(function () {
     Route::get('/active', [GameController::class, 'getActiveRewards']);
     Route::get('/eligibility', [RewardController::class, 'eligibility']);
     Route::post('/claim', [RewardController::class, 'claim']);
+});
+
+// Stage Photos Routes (new system)
+Route::prefix('stage-photos')->middleware('auth:sanctum')->group(function () {
+    Route::get('/current-stage', [StagePhotoController::class, 'getCurrentStagePhotos']);
+    Route::post('/unlock', [StagePhotoController::class, 'unlockPhoto']);
+    Route::post('/upload-voice', [StagePhotoController::class, 'uploadVoiceRecording']);
+    Route::get('/completion-status', [StagePhotoController::class, 'getStageCompletionStatus']);
 });
 
 

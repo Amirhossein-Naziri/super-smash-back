@@ -5,12 +5,14 @@ namespace App\Services;
 use App\Models\Code;
 use App\Models\Stage;
 use App\Models\Story;
+use App\Models\StagePhoto;
 use App\Models\AdminState;
 use App\Models\Reward;
 use App\Traits\TelegramMessageTrait;
-    use Illuminate\Support\Facades\Storage;
-    use Telegram\Bot\FileUpload\InputFile;
-    use App\Http\Controllers\CodeController;
+use App\Services\PhotoBlurService;
+use Illuminate\Support\Facades\Storage;
+use Telegram\Bot\FileUpload\InputFile;
+use App\Http\Controllers\CodeController;
 
 class TelegramAdminService
 {
@@ -682,6 +684,12 @@ class TelegramAdminService
             return;
         }
         
+        // Handle stage photo upload
+        if ($mode === 'stage_photo_upload' && str_starts_with($waitingFor, 'photo_')) {
+            $this->handleStagePhotoUpload($chatId, $message);
+            return;
+        }
+        
         // Handle reward creation photos
         if ($mode === 'reward_creation' && $waitingFor === 'image') {
             $this->handleRewardPhotoMessage($chatId, $message);
@@ -1254,5 +1262,246 @@ class TelegramAdminService
             ]
         ];
         $this->sendMessage($chatId, $text, $keyboard);
+    }
+
+    /**
+     * Start new stage photo upload process
+     */
+    public function startStagePhotoUpload($chatId): void
+    {
+        $nextStageNumber = Stage::getHighestStageNumber() + 1;
+        
+        $state = [
+            'mode' => 'stage_photo_upload',
+            'waiting_for' => 'stage_title',
+            'stage_number' => $nextStageNumber,
+            'current_photo' => 1,
+            'photos_uploaded' => 0,
+            'stage_data' => [
+                'title' => '',
+                'points' => 0,
+                'photos' => []
+            ]
+        ];
+        
+        $this->setAdminState($chatId, $state);
+        
+        $text = "📸 شروع آپلود عکس‌های مرحله جدید\n\n";
+        $text .= "شماره مرحله: {$nextStageNumber}\n";
+        $text .= "لطفاً عنوان مرحله را وارد کنید:";
+        
+        $this->sendMessage($chatId, $text);
+    }
+
+    /**
+     * Handle stage title input
+     */
+    public function handleStageTitleInput($chatId, $text): void
+    {
+        $state = $this->getAdminState($chatId);
+        if (!$state || $state['mode'] !== 'stage_photo_upload' || $state['waiting_for'] !== 'stage_title') {
+            return;
+        }
+        
+        $state['stage_data']['title'] = $text;
+        $state['waiting_for'] = 'stage_points';
+        
+        $this->setAdminState($chatId, $state);
+        
+        $this->sendMessage($chatId, "✅ عنوان مرحله ذخیره شد!\n\nلطفاً امتیاز این مرحله را وارد کنید:");
+    }
+
+    /**
+     * Handle stage points input
+     */
+    public function handleStagePointsInput($chatId, $text): void
+    {
+        $state = $this->getAdminState($chatId);
+        if (!$state || $state['mode'] !== 'stage_photo_upload' || $state['waiting_for'] !== 'stage_points') {
+            return;
+        }
+        
+        $points = (int) $text;
+        if ($points <= 0) {
+            $this->sendMessage($chatId, "❌ لطفاً یک عدد مثبت وارد کنید:");
+            return;
+        }
+        
+        $state['stage_data']['points'] = $points;
+        $state['waiting_for'] = 'photo_1';
+        
+        $this->setAdminState($chatId, $state);
+        
+        $text = "✅ امتیاز مرحله ذخیره شد!\n\n";
+        $text .= "حالا باید ۶ عکس برای این مرحله آپلود کنید.\n";
+        $text .= "عکس شماره ۱ از ۶ را ارسال کنید:";
+        
+        $this->sendMessage($chatId, $text);
+    }
+
+    /**
+     * Handle stage photo upload
+     */
+    public function handleStagePhotoUpload($chatId, $message): void
+    {
+        $state = $this->getAdminState($chatId);
+        if (!$state || $state['mode'] !== 'stage_photo_upload') {
+            return;
+        }
+        
+        try {
+            // Convert message to array for better debugging
+            $messageArray = $message->toArray();
+            \Log::info('Stage photo upload - Full message structure', ['message' => $messageArray]);
+
+            $fileId = null;
+            $fileType = null;
+
+            // Check for photo in message
+            if (isset($messageArray['photo']) && is_array($messageArray['photo'])) {
+                $largestPhoto = end($messageArray['photo']);
+                if (isset($largestPhoto['file_id'])) {
+                    $fileId = $largestPhoto['file_id'];
+                    $fileType = 'photo';
+                }
+            }
+            // Check for document
+            elseif (isset($messageArray['document'])) {
+                $document = $messageArray['document'];
+                if ($this->isImageDocument($document)) {
+                    $fileId = $document['file_id'];
+                    $fileType = 'document';
+                } else {
+                    throw new \Exception('لطفاً یک عکس معتبر (JPG/PNG) ارسال کنید.');
+                }
+            }
+
+            if (!$fileId) {
+                throw new \Exception('شناسه فایل عکس یافت نشد.');
+            }
+
+            // Get file info from Telegram
+            $fileResponse = $this->telegram->getFile(['file_id' => $fileId]);
+            if (!isset($fileResponse['file_path'])) {
+                throw new \Exception('مسیر فایل از API تلگرام دریافت نشد.');
+            }
+
+            $filePath = $fileResponse['file_path'];
+            $imageUrl = "https://api.telegram.org/file/bot{$this->telegram->getAccessToken()}/{$filePath}";
+
+            // Download image content
+            $imageContent = file_get_contents($imageUrl);
+            if ($imageContent === false) {
+                throw new \Exception('خطا در دانلود عکس از تلگرام.');
+            }
+
+            // Validate image content
+            if (!@imagecreatefromstring($imageContent)) {
+                throw new \Exception('فایل ارسالی یک تصویر معتبر نیست.');
+            }
+
+            // Process photo and create blurred version
+            $photoData = PhotoBlurService::processUploadedPhoto(
+                $imageContent, 
+                $state['stage_number'], 
+                $state['current_photo']
+            );
+
+            // Generate unique codes for this photo
+            $codes = StagePhoto::generateUniqueCodes();
+
+            // Save photo data to state
+            $state['stage_data']['photos'][] = [
+                'photo_order' => $state['current_photo'],
+                'original_path' => $photoData['original_path'],
+                'blurred_path' => $photoData['blurred_path'],
+                'code_1' => $codes[0],
+                'code_2' => $codes[1]
+            ];
+
+            $state['photos_uploaded']++;
+            $state['current_photo']++;
+
+            if ($state['photos_uploaded'] < 6) {
+                $state['waiting_for'] = 'photo_' . $state['current_photo'];
+                $this->setAdminState($chatId, $state);
+                
+                $text = "✅ عکس شماره {$state['photos_uploaded']} از ۶ ذخیره شد!\n\n";
+                $text .= "کدهای این عکس:\n";
+                $text .= "🔑 کد ۱: {$codes[0]}\n";
+                $text .= "🔑 کد ۲: {$codes[1]}\n\n";
+                $text .= "عکس شماره {$state['current_photo']} از ۶ را ارسال کنید:";
+                
+                $this->sendMessage($chatId, $text);
+            } else {
+                // All photos uploaded, create stage and photos
+                $this->createStageWithPhotos($chatId, $state);
+            }
+
+        } catch (\Exception $e) {
+            \Log::error('Stage photo upload error', [
+                'chat_id' => $chatId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            $this->sendErrorMessage($chatId, '❌ خطا در آپلود عکس: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Create stage with all photos
+     */
+    private function createStageWithPhotos($chatId, $state): void
+    {
+        try {
+            // Create stage
+            $stage = Stage::create([
+                'stage_number' => $state['stage_number'],
+                'points' => $state['stage_data']['points'],
+                'is_completed' => false
+            ]);
+
+            // Create stage photos
+            foreach ($state['stage_data']['photos'] as $photoData) {
+                StagePhoto::create([
+                    'stage_id' => $stage->id,
+                    'image_path' => $photoData['original_path'],
+                    'blurred_image_path' => $photoData['blurred_path'],
+                    'photo_order' => $photoData['photo_order'],
+                    'code_1' => $photoData['code_1'],
+                    'code_2' => $photoData['code_2'],
+                    'is_unlocked' => false
+                ]);
+            }
+
+            // Clear state
+            $this->clearAdminState($chatId);
+
+            $text = "🎉 مرحله جدید با موفقیت ایجاد شد!\n\n";
+            $text .= "📊 اطلاعات مرحله:\n";
+            $text .= "شماره: {$stage->stage_number}\n";
+            $text .= "عنوان: {$state['stage_data']['title']}\n";
+            $text .= "امتیاز: {$stage->points}\n";
+            $text .= "تعداد عکس‌ها: ۶\n\n";
+            $text .= "✅ همه عکس‌ها و کدهای مربوطه ذخیره شدند.";
+
+            $keyboard = [
+                [
+                    ['text' => '📸 مرحله جدید', 'callback_data' => 'admin_start_stage_photo_upload'],
+                    ['text' => '🏠 منوی اصلی', 'callback_data' => 'admin_main_menu'],
+                ]
+            ];
+
+            $this->sendMessage($chatId, $text, $keyboard);
+
+        } catch (\Exception $e) {
+            \Log::error('Error creating stage with photos', [
+                'chat_id' => $chatId,
+                'error' => $e->getMessage()
+            ]);
+
+            $this->sendErrorMessage($chatId, '❌ خطا در ایجاد مرحله: ' . $e->getMessage());
+        }
     }
 } 

@@ -28,6 +28,22 @@ class Stage extends Model
     }
 
     /**
+     * Get the photos for this stage
+     */
+    public function photos()
+    {
+        return $this->hasMany(StagePhoto::class)->orderBy('photo_order');
+    }
+
+    /**
+     * Get user progress for this stage
+     */
+    public function userProgress()
+    {
+        return $this->hasMany(UserStageProgress::class);
+    }
+
+    /**
      * Get the next incomplete stage
      */
     public static function getNextIncompleteStage()
