@@ -19,9 +19,18 @@ class StagePhotoController extends Controller
     public function debugNextStage(Request $request)
     {
         try {
-            $user = Auth::user();
+            // دریافت telegram_user_id از request
+            $telegramUserId = $request->input('telegram_user_id');
+            
+            if (!$telegramUserId) {
+                return response()->json(['error' => 'شناسه کاربر تلگرام الزامی است'], 400);
+            }
+
+            // پیدا کردن کاربر بر اساس telegram_user_id
+            $user = \App\Models\User::where('telegram_user_id', $telegramUserId)->first();
+            
             if (!$user) {
-                return response()->json(['error' => 'کاربر احراز هویت نشده'], 401);
+                return response()->json(['error' => 'کاربر یافت نشد'], 404);
             }
 
             $userId = $user->id;
@@ -41,6 +50,7 @@ class StagePhotoController extends Controller
 
             return response()->json([
                 'user_id' => $userId,
+                'telegram_user_id' => $telegramUserId,
                 'user_progress_count' => $userProgressCount,
                 'first_stage' => $firstStage ? [
                     'id' => $firstStage->id,
@@ -82,9 +92,18 @@ class StagePhotoController extends Controller
     public function testDatabase(Request $request)
     {
         try {
-            $user = Auth::user();
+            // دریافت telegram_user_id از request
+            $telegramUserId = $request->input('telegram_user_id');
+            
+            if (!$telegramUserId) {
+                return response()->json(['error' => 'شناسه کاربر تلگرام الزامی است'], 400);
+            }
+
+            // پیدا کردن کاربر بر اساس telegram_user_id
+            $user = \App\Models\User::where('telegram_user_id', $telegramUserId)->first();
+            
             if (!$user) {
-                return response()->json(['error' => 'کاربر احراز هویت نشده'], 401);
+                return response()->json(['error' => 'کاربر یافت نشد'], 404);
             }
 
             // Test database connection
@@ -132,7 +151,7 @@ class StagePhotoController extends Controller
                 'user_info' => [
                     'id' => $user->id,
                     'name' => $user->name,
-                    'telegram_id' => $user->telegram_id
+                    'telegram_id' => $user->telegram_user_id
                 ],
                 'next_stage_test' => UserStageProgress::getNextIncompleteStage($user->id) ? 'Found' : 'Not Found'
             ]);
@@ -151,9 +170,18 @@ class StagePhotoController extends Controller
     public function createTestStage(Request $request)
     {
         try {
-            $user = Auth::user();
+            // دریافت telegram_user_id از request
+            $telegramUserId = $request->input('telegram_user_id');
+            
+            if (!$telegramUserId) {
+                return response()->json(['error' => 'شناسه کاربر تلگرام الزامی است'], 400);
+            }
+
+            // پیدا کردن کاربر بر اساس telegram_user_id
+            $user = \App\Models\User::where('telegram_user_id', $telegramUserId)->first();
+            
             if (!$user) {
-                return response()->json(['error' => 'کاربر احراز هویت نشده'], 401);
+                return response()->json(['error' => 'کاربر یافت نشد'], 404);
             }
 
             // Create test stage
@@ -211,9 +239,18 @@ class StagePhotoController extends Controller
     public function getCurrentStagePhotos(Request $request)
     {
         try {
-            $user = Auth::user();
+            // دریافت telegram_user_id از request
+            $telegramUserId = $request->input('telegram_user_id');
+            
+            if (!$telegramUserId) {
+                return response()->json(['error' => 'شناسه کاربر تلگرام الزامی است'], 400);
+            }
+
+            // پیدا کردن کاربر بر اساس telegram_user_id
+            $user = \App\Models\User::where('telegram_user_id', $telegramUserId)->first();
+            
             if (!$user) {
-                return response()->json(['error' => 'کاربر احراز هویت نشده'], 401);
+                return response()->json(['error' => 'کاربر یافت نشد'], 404);
             }
 
             // Check if there are any stages in the database
@@ -300,6 +337,7 @@ class StagePhotoController extends Controller
                     'total_stages' => $totalStages,
                     'photos_count' => $photos->count(),
                     'user_id' => $user->id,
+                    'telegram_user_id' => $telegramUserId,
                     'stage_id' => $stage->id,
                     'user_progress_count' => UserStageProgress::where('user_id', $user->id)->count(),
                     'method_result' => 'Success - stage found'
@@ -308,7 +346,7 @@ class StagePhotoController extends Controller
 
         } catch (\Exception $e) {
             \Log::error('Error getting current stage photos', [
-                'user_id' => Auth::id(),
+                'telegram_user_id' => $request->input('telegram_user_id'),
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
@@ -326,9 +364,18 @@ class StagePhotoController extends Controller
     public function unlockPhoto(Request $request)
     {
         try {
-            $user = Auth::user();
+            // دریافت telegram_user_id از request
+            $telegramUserId = $request->input('telegram_user_id');
+            
+            if (!$telegramUserId) {
+                return response()->json(['error' => 'شناسه کاربر تلگرام الزامی است'], 400);
+            }
+
+            // پیدا کردن کاربر بر اساس telegram_user_id
+            $user = \App\Models\User::where('telegram_user_id', $telegramUserId)->first();
+            
             if (!$user) {
-                return response()->json(['error' => 'کاربر احراز هویت نشده'], 401);
+                return response()->json(['error' => 'کاربر یافت نشد'], 404);
             }
 
             $request->validate([
@@ -371,7 +418,7 @@ class StagePhotoController extends Controller
 
         } catch (\Exception $e) {
             \Log::error('Error unlocking photo', [
-                'user_id' => Auth::id(),
+                'telegram_user_id' => $request->input('telegram_user_id'),
                 'photo_id' => $request->photo_id,
                 'error' => $e->getMessage()
             ]);
@@ -386,9 +433,18 @@ class StagePhotoController extends Controller
     public function uploadVoiceRecording(Request $request)
     {
         try {
-            $user = Auth::user();
+            // دریافت telegram_user_id از request
+            $telegramUserId = $request->input('telegram_user_id');
+            
+            if (!$telegramUserId) {
+                return response()->json(['error' => 'شناسه کاربر تلگرام الزامی است'], 400);
+            }
+
+            // پیدا کردن کاربر بر اساس telegram_user_id
+            $user = \App\Models\User::where('telegram_user_id', $telegramUserId)->first();
+            
             if (!$user) {
-                return response()->json(['error' => 'کاربر احراز هویت نشده'], 401);
+                return response()->json(['error' => 'کاربر یافت نشد'], 404);
             }
 
             $request->validate([
@@ -441,7 +497,7 @@ class StagePhotoController extends Controller
 
         } catch (\Exception $e) {
             \Log::error('Error uploading voice recording', [
-                'user_id' => Auth::id(),
+                'telegram_user_id' => $request->input('telegram_user_id'),
                 'photo_id' => $request->photo_id,
                 'error' => $e->getMessage()
             ]);

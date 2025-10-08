@@ -74,8 +74,8 @@ Route::prefix('rewards')->group(function () {
     Route::post('/claim', [RewardController::class, 'claim']);
 });
 
-// Stage Photos Routes (new system)
-Route::prefix('stage-photos')->middleware('auth:sanctum')->group(function () {
+// Stage Photos Routes (new system) - بدون authentication middleware
+Route::prefix('stage-photos')->group(function () {
     Route::get('/current-stage', [StagePhotoController::class, 'getCurrentStagePhotos']);
     Route::post('/unlock', [StagePhotoController::class, 'unlockPhoto']);
     Route::post('/upload-voice', [StagePhotoController::class, 'uploadVoiceRecording']);
