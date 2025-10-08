@@ -119,9 +119,6 @@ class TelegramBotController extends Controller
             case 'admin_export_codes_csv':
                 $this->adminService->exportCodesCsvAndSend($chatId);
                 break;
-            case 'admin_create_story':
-                $this->adminService->startStoryCreation($chatId);
-                break;
             case 'admin_start_stage_photo_upload':
                 $this->adminService->startStagePhotoUpload($chatId);
                 break;
@@ -160,10 +157,8 @@ class TelegramBotController extends Controller
                 $this->adminService->sendMessage($chatId, "🔗 لطفاً یک عکس ارسال کنید تا تست دانلود کنیم.");
                 break;
             case 'admin_reset_story':
-                $this->adminService->resetStoryCreation($chatId);
-                break;
-            case 'finalize_stage':
-                $this->adminService->finalizeStage($chatId);
+                $this->adminService->clearAdminState($chatId);
+                $this->adminService->sendMessage($chatId, "🔄 حالت بازنشانی شد!");
                 break;
             default:
                 $this->handleDynamicCallback($chatId, $callbackData);
@@ -181,9 +176,6 @@ class TelegramBotController extends Controller
         switch ($parsed['action']) {
             case 'create_codes':
                 $this->adminService->createCodes($chatId, $parsed['count']);
-                break;
-            case 'story_correct':
-                $this->adminService->handleStoryCorrectChoice($chatId, $parsed['is_correct']);
                 break;
             case 'view_stage':
                 $this->adminService->showStageDetails($chatId, $parsed['stage_id']);

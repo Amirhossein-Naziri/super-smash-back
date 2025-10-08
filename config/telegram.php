@@ -53,8 +53,7 @@ return [
         ],
         'story_settings' => [
             [
-                ['text' => '📸 ساخت مرحله جدید (سیستم جدید)', 'callback_data' => 'admin_start_stage_photo_upload'],
-                ['text' => '📚 ساخت داستان (سیستم قدیم)', 'callback_data' => 'admin_create_story'],
+                ['text' => '📸 ساخت مرحله جدید', 'callback_data' => 'admin_start_stage_photo_upload'],
             ],
             [
                 ['text' => '📋 لیست مرحله ها', 'callback_data' => 'admin_list_stages'],
@@ -78,12 +77,6 @@ return [
             ],
             [
                 ['text' => 'بازگشت', 'callback_data' => 'admin_code_settings'],
-            ]
-        ],
-        'story_correct' => [
-            [
-                ['text' => '✅ درست', 'callback_data' => 'story_correct_true'],
-                ['text' => '❌ اشتباه', 'callback_data' => 'story_correct_false'],
             ]
         ],
         'reward_settings' => [

@@ -20,14 +20,6 @@ class Stage extends Model
     ];
 
     /**
-     * Get the stories for this stage
-     */
-    public function stories()
-    {
-        return $this->hasMany(Story::class)->orderBy('order');
-    }
-
-    /**
      * Get the photos for this stage
      */
     public function photos()

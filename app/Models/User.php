@@ -50,14 +50,6 @@ class User extends Authenticatable
     ];
 
     /**
-     * Get the codes used by this user
-     */
-    public function codes()
-    {
-        return $this->hasMany(Code::class);
-    }
-
-    /**
      * Get voice recordings made by this user
      */
     public function voiceRecordings()
