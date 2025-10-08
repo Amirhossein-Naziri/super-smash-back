@@ -37,7 +37,6 @@ class PhotoBlurService
             throw new \Exception('خطا در ایجاد عکس تار: ' . $e->getMessage());
         }
     }
-
     /**
      * Process uploaded photo and create both original and blurred versions
      */
@@ -80,7 +79,6 @@ class PhotoBlurService
             throw new \Exception('خطا در پردازش عکس: ' . $e->getMessage());
         }
     }
-
     /**
      * Get image URL for frontend
      */
