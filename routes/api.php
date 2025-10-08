@@ -82,6 +82,8 @@ Route::prefix('stage-photos')->group(function () {
     Route::get('/completion-status', [StagePhotoController::class, 'getStageCompletionStatus']);
     Route::get('/test-database', [StagePhotoController::class, 'testDatabase']);
     Route::get('/debug-next-stage', [StagePhotoController::class, 'debugNextStage']);
+    Route::get('/debug-photo-codes', [StagePhotoController::class, 'debugPhotoCodes']);
+    Route::post('/test-code-validation', [StagePhotoController::class, 'testCodeValidation']);
     Route::post('/create-test-stage', [StagePhotoController::class, 'createTestStage']);
 });
 

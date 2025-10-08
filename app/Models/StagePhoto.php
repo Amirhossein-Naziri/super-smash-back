@@ -71,7 +71,13 @@ class StagePhoto extends Model
      */
     public function validateCodes($code1, $code2)
     {
-        return ($this->code_1 === strtoupper($code1) && $this->code_2 === strtoupper($code2)) ||
-               ($this->code_1 === strtoupper($code2) && $this->code_2 === strtoupper($code1));
+        // Clean and normalize codes - remove all whitespace and convert to uppercase
+        $cleanCode1 = strtoupper(trim(preg_replace('/\s+/', '', $code1)));
+        $cleanCode2 = strtoupper(trim(preg_replace('/\s+/', '', $code2)));
+        $cleanStoredCode1 = strtoupper(trim(preg_replace('/\s+/', '', $this->code_1)));
+        $cleanStoredCode2 = strtoupper(trim(preg_replace('/\s+/', '', $this->code_2)));
+        
+        return ($cleanStoredCode1 === $cleanCode1 && $cleanStoredCode2 === $cleanCode2) ||
+               ($cleanStoredCode1 === $cleanCode2 && $cleanStoredCode2 === $cleanCode1);
     }
 }

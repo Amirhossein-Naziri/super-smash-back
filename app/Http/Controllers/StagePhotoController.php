@@ -165,6 +165,137 @@ class StagePhotoController extends Controller
     }
 
     /**
+     * Debug photo codes
+     */
+    public function debugPhotoCodes(Request $request)
+    {
+        try {
+            // دریافت telegram_user_id از request
+            $telegramUserId = $request->input('telegram_user_id');
+            
+            if (!$telegramUserId) {
+                return response()->json(['error' => 'شناسه کاربر تلگرام الزامی است'], 400);
+            }
+
+            // پیدا کردن کاربر بر اساس telegram_user_id
+            $user = \App\Models\User::where('telegram_user_id', $telegramUserId)->first();
+            
+            if (!$user) {
+                return response()->json(['error' => 'کاربر یافت نشد'], 404);
+            }
+
+            // Get next incomplete stage for user
+            $stage = UserStageProgress::getNextIncompleteStage($user->id);
+            
+            if (!$stage) {
+                return response()->json(['error' => 'مرحله‌ای یافت نشد'], 404);
+            }
+
+            // Get photos for this stage
+            $photos = StagePhoto::getPhotosForStage($stage->id);
+            
+            $photosData = $photos->map(function($photo) {
+                return [
+                    'id' => $photo->id,
+                    'photo_order' => $photo->photo_order,
+                    'code_1' => $photo->code_1,
+                    'code_2' => $photo->code_2,
+                    'is_unlocked' => $photo->is_unlocked
+                ];
+            });
+
+            return response()->json([
+                'stage_id' => $stage->id,
+                'stage_number' => $stage->stage_number,
+                'photos' => $photosData,
+                'debug_info' => [
+                    'user_id' => $user->id,
+                    'telegram_user_id' => $telegramUserId,
+                    'total_photos' => $photos->count()
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Debug failed: ' . $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ], 500);
+        }
+    }
+
+    /**
+     * Test code validation directly
+     */
+    public function testCodeValidation(Request $request)
+    {
+        try {
+            $telegramUserId = $request->input('telegram_user_id');
+            $photoId = $request->input('photo_id');
+            $code1 = $request->input('code_1');
+            $code2 = $request->input('code_2');
+            
+            if (!$telegramUserId || !$photoId || !$code1 || !$code2) {
+                return response()->json(['error' => 'تمام پارامترها الزامی است'], 400);
+            }
+
+            $photo = StagePhoto::find($photoId);
+            if (!$photo) {
+                return response()->json(['error' => 'عکس یافت نشد'], 404);
+            }
+
+            // Clean and normalize codes
+            $inputCode1 = strtoupper(trim($code1));
+            $inputCode2 = strtoupper(trim($code2));
+            $storedCode1 = strtoupper(trim($photo->code_1));
+            $storedCode2 = strtoupper(trim($photo->code_2));
+
+            // Test different validation methods
+            $method1 = ($storedCode1 === $inputCode1 && $storedCode2 === $inputCode2);
+            $method2 = ($storedCode1 === $inputCode2 && $storedCode2 === $inputCode1);
+            $method3 = $photo->validateCodes($code1, $code2);
+
+            return response()->json([
+                'photo_id' => $photo->id,
+                'photo_order' => $photo->photo_order,
+                'input_codes' => [
+                    'raw_1' => $code1,
+                    'raw_2' => $code2,
+                    'processed_1' => $inputCode1,
+                    'processed_2' => $inputCode2,
+                    'length_1' => strlen($inputCode1),
+                    'length_2' => strlen($inputCode2)
+                ],
+                'stored_codes' => [
+                    'raw_1' => $photo->code_1,
+                    'raw_2' => $photo->code_2,
+                    'processed_1' => $storedCode1,
+                    'processed_2' => $storedCode2,
+                    'length_1' => strlen($storedCode1),
+                    'length_2' => strlen($storedCode2)
+                ],
+                'validation_results' => [
+                    'method_1' => $method1,
+                    'method_2' => $method2,
+                    'method_3' => $method3,
+                    'final_result' => $method1 || $method2
+                ],
+                'debug' => [
+                    'code_1_match' => $storedCode1 === $inputCode1,
+                    'code_2_match' => $storedCode2 === $inputCode2,
+                    'code_1_swap_match' => $storedCode1 === $inputCode2,
+                    'code_2_swap_match' => $storedCode2 === $inputCode1
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Test failed: ' . $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ], 500);
+        }
+    }
+
+    /**
      * Create a test stage with photos
      */
     public function createTestStage(Request $request)
@@ -391,9 +522,40 @@ class StagePhotoController extends Controller
                 return response()->json(['message' => 'این عکس قبلاً باز شده است'], 200);
             }
 
+            // Clean and normalize codes - remove all whitespace and convert to uppercase
+            $inputCode1 = strtoupper(trim(preg_replace('/\s+/', '', $request->code_1)));
+            $inputCode2 = strtoupper(trim(preg_replace('/\s+/', '', $request->code_2)));
+            $storedCode1 = strtoupper(trim(preg_replace('/\s+/', '', $photo->code_1)));
+            $storedCode2 = strtoupper(trim(preg_replace('/\s+/', '', $photo->code_2)));
+
+            // Debug: Log the codes for troubleshooting
+            \Log::info('Code validation attempt', [
+                'photo_id' => $photo->id,
+                'input_code_1' => $inputCode1,
+                'input_code_2' => $inputCode2,
+                'stored_code_1' => $storedCode1,
+                'stored_code_2' => $storedCode2,
+                'raw_stored_code_1' => $photo->code_1,
+                'raw_stored_code_2' => $photo->code_2,
+                'telegram_user_id' => $telegramUserId,
+                'code_1_length' => strlen($inputCode1),
+                'code_2_length' => strlen($inputCode2),
+                'stored_1_length' => strlen($storedCode1),
+                'stored_2_length' => strlen($storedCode2)
+            ]);
+
             // Validate codes
-            if (!$photo->validateCodes($request->code_1, $request->code_2)) {
-                return response()->json(['error' => 'کدهای وارد شده اشتباه است'], 400);
+            $isValid = ($storedCode1 === $inputCode1 && $storedCode2 === $inputCode2) ||
+                      ($storedCode1 === $inputCode2 && $storedCode2 === $inputCode1);
+
+            if (!$isValid) {
+                return response()->json([
+                    'error' => 'کدهای وارد شده اشتباه است',
+                    'debug' => [
+                        'input_codes' => [$inputCode1, $inputCode2],
+                        'stored_codes' => [$storedCode1, $storedCode2]
+                    ]
+                ], 400);
             }
 
             // Unlock photo
