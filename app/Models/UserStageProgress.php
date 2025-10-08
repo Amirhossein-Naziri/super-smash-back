@@ -82,6 +82,15 @@ class UserStageProgress extends Model
      */
     public static function getNextIncompleteStage($userId)
     {
+        // First check if user has any progress records
+        $userProgressCount = self::where('user_id', $userId)->count();
+        
+        if ($userProgressCount === 0) {
+            // If user has no progress, return the first stage
+            return Stage::orderBy('stage_number')->first();
+        }
+        
+        // Get completed stages for user
         $completedStages = self::where('user_id', $userId)
                               ->where('stage_completed', true)
                               ->pluck('stage_id')

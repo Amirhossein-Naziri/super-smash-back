@@ -14,8 +14,137 @@ use Illuminate\Support\Facades\Storage;
 class StagePhotoController extends Controller
 {
     /**
-     * Get current stage photos for user
+     * Test database connection and data
      */
+    public function testDatabase(Request $request)
+    {
+        try {
+            $user = Auth::user();
+            if (!$user) {
+                return response()->json(['error' => 'کاربر احراز هویت نشده'], 401);
+            }
+
+            // Test database connection
+            $dbTest = \DB::connection()->getPdo();
+            $dbStatus = $dbTest ? 'Connected' : 'Failed';
+
+            // Count records in each table
+            $stagesCount = Stage::count();
+            $photosCount = StagePhoto::count();
+            $progressCount = UserStageProgress::count();
+            $recordingsCount = UserVoiceRecording::count();
+            $usersCount = \App\Models\User::count();
+
+            // Get sample data
+            $sampleStage = Stage::first();
+            $samplePhoto = StagePhoto::first();
+            $userProgress = UserStageProgress::where('user_id', $user->id)->first();
+
+            return response()->json([
+                'database_status' => $dbStatus,
+                'table_counts' => [
+                    'stages' => $stagesCount,
+                    'stage_photos' => $photosCount,
+                    'user_stage_progress' => $progressCount,
+                    'user_voice_recordings' => $recordingsCount,
+                    'users' => $usersCount
+                ],
+                'sample_data' => [
+                    'stage' => $sampleStage ? [
+                        'id' => $sampleStage->id,
+                        'stage_number' => $sampleStage->stage_number,
+                        'points' => $sampleStage->points
+                    ] : null,
+                    'photo' => $samplePhoto ? [
+                        'id' => $samplePhoto->id,
+                        'stage_id' => $samplePhoto->stage_id,
+                        'photo_order' => $samplePhoto->photo_order
+                    ] : null,
+                    'user_progress' => $userProgress ? [
+                        'id' => $userProgress->id,
+                        'stage_id' => $userProgress->stage_id,
+                        'unlocked_photos_count' => $userProgress->unlocked_photos_count
+                    ] : null
+                ],
+                'user_info' => [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'telegram_id' => $user->telegram_id
+                ],
+                'next_stage_test' => UserStageProgress::getNextIncompleteStage($user->id) ? 'Found' : 'Not Found'
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Database test failed: ' . $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ], 500);
+        }
+    }
+
+    /**
+     * Create a test stage with photos
+     */
+    public function createTestStage(Request $request)
+    {
+        try {
+            $user = Auth::user();
+            if (!$user) {
+                return response()->json(['error' => 'کاربر احراز هویت نشده'], 401);
+            }
+
+            // Create test stage
+            $stage = Stage::create([
+                'stage_number' => Stage::getHighestStageNumber() + 1,
+                'points' => 100,
+                'is_completed' => false
+            ]);
+
+            // Create 6 test photos for this stage
+            $photos = [];
+            for ($i = 1; $i <= 6; $i++) {
+                $codes = StagePhoto::generateUniqueCodes();
+                $photo = StagePhoto::create([
+                    'stage_id' => $stage->id,
+                    'image_path' => "test/original_photo_{$i}.jpg",
+                    'blurred_image_path' => "test/blurred_photo_{$i}.jpg",
+                    'photo_order' => $i,
+                    'code_1' => $codes[0],
+                    'code_2' => $codes[1],
+                    'is_unlocked' => false
+                ]);
+                $photos[] = $photo;
+            }
+
+            return response()->json([
+                'message' => 'Test stage created successfully',
+                'stage' => [
+                    'id' => $stage->id,
+                    'stage_number' => $stage->stage_number,
+                    'points' => $stage->points
+                ],
+                'photos' => $photos->map(function($photo) {
+                    return [
+                        'id' => $photo->id,
+                        'photo_order' => $photo->photo_order,
+                        'code_1' => $photo->code_1,
+                        'code_2' => $photo->code_2
+                    ];
+                }),
+                'debug' => [
+                    'total_stages' => Stage::count(),
+                    'total_photos' => StagePhoto::count()
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Failed to create test stage: ' . $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ], 500);
+        }
+    }
+
     public function getCurrentStagePhotos(Request $request)
     {
         try {
@@ -42,6 +171,16 @@ class StagePhotoController extends Controller
                     'debug' => 'All stages completed for user',
                     'total_stages' => $totalStages
                 ], 200);
+            }
+
+            // Check if stage has photos
+            $photosCount = StagePhoto::where('stage_id', $stage->id)->count();
+            if ($photosCount === 0) {
+                return response()->json([
+                    'error' => 'مرحله ' . $stage->stage_number . ' عکسی ندارد',
+                    'debug' => 'Stage ' . $stage->id . ' has no photos',
+                    'stage_id' => $stage->id
+                ], 404);
             }
 
             // Get photos for this stage
@@ -82,7 +221,8 @@ class StagePhotoController extends Controller
                     'total_stages' => $totalStages,
                     'photos_count' => $photos->count(),
                     'user_id' => $user->id,
-                    'stage_id' => $stage->id
+                    'stage_id' => $stage->id,
+                    'user_progress_count' => UserStageProgress::where('user_id', $user->id)->count()
                 ]
             ]);
 
