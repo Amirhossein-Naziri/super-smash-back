@@ -87,7 +87,12 @@ class UserStageProgress extends Model
         
         if ($userProgressCount === 0) {
             // If user has no progress, return the first stage
-            return Stage::orderBy('stage_number')->first();
+            $firstStage = Stage::orderBy('stage_number')->first();
+            if (!$firstStage) {
+                // If no stages exist, return null
+                return null;
+            }
+            return $firstStage;
         }
         
         // Get completed stages for user
@@ -95,6 +100,12 @@ class UserStageProgress extends Model
                               ->where('stage_completed', true)
                               ->pluck('stage_id')
                               ->toArray();
+
+        // If user has completed all stages, return null
+        $totalStages = Stage::count();
+        if (count($completedStages) >= $totalStages) {
+            return null;
+        }
 
         return Stage::whereNotIn('id', $completedStages)
                     ->orderBy('stage_number')

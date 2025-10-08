@@ -32,6 +32,12 @@ class StagePhotoController extends Controller
             $allStages = Stage::orderBy('stage_number')->get();
             
             $nextStage = UserStageProgress::getNextIncompleteStage($userId);
+            
+            // Additional debugging
+            $completedStages = UserStageProgress::where('user_id', $userId)
+                                              ->where('stage_completed', true)
+                                              ->pluck('stage_id')
+                                              ->toArray();
 
             return response()->json([
                 'user_id' => $userId,
@@ -48,6 +54,7 @@ class StagePhotoController extends Controller
                         'points' => $stage->points
                     ];
                 }),
+                'completed_stages' => $completedStages,
                 'next_stage_result' => $nextStage ? [
                     'id' => $nextStage->id,
                     'stage_number' => $nextStage->stage_number,
@@ -55,7 +62,9 @@ class StagePhotoController extends Controller
                 ] : null,
                 'debug' => [
                     'method_logic' => $userProgressCount === 0 ? 'Return first stage' : 'Check completed stages',
-                    'stages_count' => $allStages->count()
+                    'stages_count' => $allStages->count(),
+                    'should_return_first' => $userProgressCount === 0 && $firstStage !== null,
+                    'should_return_null' => $userProgressCount > 0 && count($completedStages) >= $allStages->count()
                 ]
             ]);
 
@@ -220,11 +229,27 @@ class StagePhotoController extends Controller
             $stage = UserStageProgress::getNextIncompleteStage($user->id);
             
             if (!$stage) {
-                return response()->json([
-                    'message' => 'همه مراحل تکمیل شده‌اند',
-                    'debug' => 'All stages completed for user',
-                    'total_stages' => $totalStages
-                ], 200);
+                // Check if user has any progress at all
+                $userProgressCount = UserStageProgress::where('user_id', $user->id)->count();
+                if ($userProgressCount === 0) {
+                    // User has no progress, but stages exist - this shouldn't happen
+                    // Return the first stage as fallback
+                    $stage = Stage::orderBy('stage_number')->first();
+                    if (!$stage) {
+                        return response()->json([
+                            'error' => 'خطا در سیستم: هیچ مرحله‌ای یافت نشد',
+                            'debug' => 'Fallback failed - no stages exist'
+                        ], 500);
+                    }
+                } else {
+                    // User has progress but all stages are completed
+                    return response()->json([
+                        'message' => 'همه مراحل تکمیل شده‌اند',
+                        'debug' => 'All stages completed for user',
+                        'total_stages' => $totalStages,
+                        'user_progress_count' => $userProgressCount
+                    ], 200);
+                }
             }
 
             // Check if stage has photos
@@ -276,17 +301,22 @@ class StagePhotoController extends Controller
                     'photos_count' => $photos->count(),
                     'user_id' => $user->id,
                     'stage_id' => $stage->id,
-                    'user_progress_count' => UserStageProgress::where('user_id', $user->id)->count()
+                    'user_progress_count' => UserStageProgress::where('user_id', $user->id)->count(),
+                    'method_result' => 'Success - stage found'
                 ]
             ]);
 
         } catch (\Exception $e) {
             \Log::error('Error getting current stage photos', [
                 'user_id' => Auth::id(),
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
             ]);
 
-            return response()->json(['error' => 'خطا در دریافت عکس‌های مرحله'], 500);
+            return response()->json([
+                'error' => 'خطا در دریافت عکس‌های مرحله',
+                'debug' => 'Exception: ' . $e->getMessage()
+            ], 500);
         }
     }
 

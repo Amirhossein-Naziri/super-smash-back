@@ -64,7 +64,15 @@ foreach ($users as $user) {
     if ($nextStage) {
         echo "      ✅ Next Stage: ID={$nextStage->id}, Number={$nextStage->stage_number}, Points={$nextStage->points}\n";
     } else {
-        echo "      ❌ Next Stage: NULL (همه مراحل تکمیل شده)\n";
+        echo "      ❌ Next Stage: NULL (همه مراحل تکمیل شده یا هیچ مرحله‌ای وجود ندارد)\n";
+        // بررسی بیشتر
+        $totalStages = App\Models\Stage::count();
+        $userProgressCount = App\Models\UserStageProgress::where('user_id', $user->id)->count();
+        echo "         📊 Total Stages: $totalStages\n";
+        echo "         📊 User Progress Count: $userProgressCount\n";
+        if ($userProgressCount === 0 && $totalStages > 0) {
+            echo "         ⚠️  مشکل: کاربر هیچ progress ندارد اما مراحل وجود دارند!\n";
+        }
     }
     
     // تست getOrCreateProgress
