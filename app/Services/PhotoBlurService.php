@@ -3,7 +3,8 @@
 namespace App\Services;
 
 use Illuminate\Support\Facades\Storage;
-use Intervention\Image\Facades\Image;
+use Intervention\Image\ImageManager;
+use Intervention\Image\Drivers\Gd\Driver;
 
 class PhotoBlurService
 {
@@ -13,8 +14,11 @@ class PhotoBlurService
     public static function createBlurredImage($originalImagePath, $blurIntensity = 15)
     {
         try {
+            // Create ImageManager instance
+            $manager = new ImageManager(new Driver());
+            
             // Load the original image
-            $image = Image::make($originalImagePath);
+            $image = $manager->read($originalImagePath);
             
             // Apply blur effect
             $image->blur($blurIntensity);
