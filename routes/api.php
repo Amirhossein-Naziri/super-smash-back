@@ -80,10 +80,7 @@ Route::prefix('stage-photos')->group(function () {
     Route::post('/unlock', [StagePhotoController::class, 'unlockPhoto']);
     Route::post('/upload-voice', [StagePhotoController::class, 'uploadVoiceRecording']);
     Route::get('/completion-status', [StagePhotoController::class, 'getStageCompletionStatus']);
-    Route::get('/test-database', [StagePhotoController::class, 'testDatabase']);
-    Route::get('/debug-next-stage', [StagePhotoController::class, 'debugNextStage']);
-    Route::get('/debug-photo-codes', [StagePhotoController::class, 'debugPhotoCodes']);
-    Route::post('/test-code-validation', [StagePhotoController::class, 'testCodeValidation']);
+    Route::post('/clean-codes', [StagePhotoController::class, 'cleanExistingCodes']);
     Route::post('/create-test-stage', [StagePhotoController::class, 'createTestStage']);
 });
 

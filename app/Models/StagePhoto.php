@@ -45,8 +45,22 @@ class StagePhoto extends Model
     public static function generateUniqueCodes()
     {
         do {
+            // Generate codes with only uppercase letters and numbers
             $code1 = strtoupper(substr(str_shuffle('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'), 0, 6));
             $code2 = strtoupper(substr(str_shuffle('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'), 0, 6));
+            
+            // Ensure codes are clean (no spaces, only alphanumeric)
+            $code1 = preg_replace('/[^A-Z0-9]/', '', $code1);
+            $code2 = preg_replace('/[^A-Z0-9]/', '', $code2);
+            
+            // Ensure codes are exactly 6 characters
+            if (strlen($code1) < 6) {
+                $code1 = str_pad($code1, 6, '0', STR_PAD_RIGHT);
+            }
+            if (strlen($code2) < 6) {
+                $code2 = str_pad($code2, 6, '0', STR_PAD_RIGHT);
+            }
+            
         } while (
             self::where('code_1', $code1)->orWhere('code_2', $code1)->exists() ||
             self::where('code_1', $code2)->orWhere('code_2', $code2)->exists() ||

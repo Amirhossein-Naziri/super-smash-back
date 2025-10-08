@@ -224,6 +224,72 @@ class StagePhotoController extends Controller
     }
 
     /**
+     * Get raw database codes for debugging
+     */
+    public function getRawDatabaseCodes(Request $request)
+    {
+        try {
+            $telegramUserId = $request->input('telegram_user_id');
+            
+            if (!$telegramUserId) {
+                return response()->json(['error' => 'شناسه کاربر تلگرام الزامی است'], 400);
+            }
+
+            $user = \App\Models\User::where('telegram_user_id', $telegramUserId)->first();
+            
+            if (!$user) {
+                return response()->json(['error' => 'کاربر یافت نشد'], 404);
+            }
+
+            $stage = UserStageProgress::getNextIncompleteStage($user->id);
+            
+            if (!$stage) {
+                return response()->json(['error' => 'مرحله‌ای یافت نشد'], 404);
+            }
+
+            // Get raw data from database
+            $photos = \DB::table('stage_photos')
+                ->where('stage_id', $stage->id)
+                ->orderBy('photo_order')
+                ->get();
+
+            $rawData = [];
+            foreach ($photos as $photo) {
+                $rawData[] = [
+                    'id' => $photo->id,
+                    'photo_order' => $photo->photo_order,
+                    'code_1_raw' => $photo->code_1,
+                    'code_2_raw' => $photo->code_2,
+                    'code_1_length' => strlen($photo->code_1),
+                    'code_2_length' => strlen($photo->code_2),
+                    'code_1_bytes' => array_values(unpack('C*', $photo->code_1)),
+                    'code_2_bytes' => array_values(unpack('C*', $photo->code_2)),
+                    'code_1_hex' => bin2hex($photo->code_1),
+                    'code_2_hex' => bin2hex($photo->code_2),
+                    'is_unlocked' => $photo->is_unlocked
+                ];
+            }
+
+            return response()->json([
+                'stage_id' => $stage->id,
+                'stage_number' => $stage->stage_number,
+                'raw_photos' => $rawData,
+                'debug_info' => [
+                    'user_id' => $user->id,
+                    'telegram_user_id' => $telegramUserId,
+                    'total_photos' => count($rawData)
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Raw data failed: ' . $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ], 500);
+        }
+    }
+
+    /**
      * Test code validation directly
      */
     public function testCodeValidation(Request $request)
@@ -290,6 +356,142 @@ class StagePhotoController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'error' => 'Test failed: ' . $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ], 500);
+        }
+    }
+
+    /**
+     * Regenerate codes for all photos in current stage
+     */
+    public function regenerateCodes(Request $request)
+    {
+        try {
+            $telegramUserId = $request->input('telegram_user_id');
+            
+            if (!$telegramUserId) {
+                return response()->json(['error' => 'شناسه کاربر تلگرام الزامی است'], 400);
+            }
+
+            $user = \App\Models\User::where('telegram_user_id', $telegramUserId)->first();
+            
+            if (!$user) {
+                return response()->json(['error' => 'کاربر یافت نشد'], 404);
+            }
+
+            $stage = UserStageProgress::getNextIncompleteStage($user->id);
+            
+            if (!$stage) {
+                return response()->json(['error' => 'مرحله‌ای یافت نشد'], 404);
+            }
+
+            $photos = StagePhoto::getPhotosForStage($stage->id);
+            $regeneratedCodes = [];
+
+            foreach ($photos as $photo) {
+                $oldCode1 = $photo->code_1;
+                $oldCode2 = $photo->code_2;
+                
+                // Generate new codes
+                $newCodes = StagePhoto::generateUniqueCodes();
+                
+                $photo->code_1 = $newCodes[0];
+                $photo->code_2 = $newCodes[1];
+                $photo->is_unlocked = false; // Reset unlock status
+                $photo->save();
+                
+                $regeneratedCodes[] = [
+                    'photo_id' => $photo->id,
+                    'photo_order' => $photo->photo_order,
+                    'old_code_1' => $oldCode1,
+                    'old_code_2' => $oldCode2,
+                    'new_code_1' => $newCodes[0],
+                    'new_code_2' => $newCodes[1]
+                ];
+            }
+
+            return response()->json([
+                'message' => 'کدها با موفقیت بازتولید شدند',
+                'stage_id' => $stage->id,
+                'stage_number' => $stage->stage_number,
+                'regenerated_codes' => $regeneratedCodes
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Regenerate failed: ' . $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ], 500);
+        }
+    }
+
+    /**
+     * Clean existing codes in database
+     */
+    public function cleanExistingCodes(Request $request)
+    {
+        try {
+            $telegramUserId = $request->input('telegram_user_id');
+            
+            if (!$telegramUserId) {
+                return response()->json(['error' => 'شناسه کاربر تلگرام الزامی است'], 400);
+            }
+
+            $user = \App\Models\User::where('telegram_user_id', $telegramUserId)->first();
+            
+            if (!$user) {
+                return response()->json(['error' => 'کاربر یافت نشد'], 404);
+            }
+
+            $stage = UserStageProgress::getNextIncompleteStage($user->id);
+            
+            if (!$stage) {
+                return response()->json(['error' => 'مرحله‌ای یافت نشد'], 404);
+            }
+
+            $photos = StagePhoto::getPhotosForStage($stage->id);
+            $cleanedCodes = [];
+
+            foreach ($photos as $photo) {
+                $oldCode1 = $photo->code_1;
+                $oldCode2 = $photo->code_2;
+                
+                // Clean codes
+                $cleanCode1 = strtoupper(trim(preg_replace('/[^A-Z0-9]/', '', $photo->code_1)));
+                $cleanCode2 = strtoupper(trim(preg_replace('/[^A-Z0-9]/', '', $photo->code_2)));
+                
+                // Ensure codes are exactly 6 characters
+                if (strlen($cleanCode1) < 6) {
+                    $cleanCode1 = str_pad($cleanCode1, 6, '0', STR_PAD_RIGHT);
+                }
+                if (strlen($cleanCode2) < 6) {
+                    $cleanCode2 = str_pad($cleanCode2, 6, '0', STR_PAD_RIGHT);
+                }
+                
+                $photo->code_1 = $cleanCode1;
+                $photo->code_2 = $cleanCode2;
+                $photo->save();
+                
+                $cleanedCodes[] = [
+                    'photo_id' => $photo->id,
+                    'photo_order' => $photo->photo_order,
+                    'old_code_1' => $oldCode1,
+                    'old_code_2' => $oldCode2,
+                    'new_code_1' => $cleanCode1,
+                    'new_code_2' => $cleanCode2
+                ];
+            }
+
+            return response()->json([
+                'message' => 'کدها با موفقیت تمیز شدند',
+                'stage_id' => $stage->id,
+                'stage_number' => $stage->stage_number,
+                'cleaned_codes' => $cleanedCodes
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Clean failed: ' . $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ], 500);
         }
@@ -411,12 +613,12 @@ class StagePhotoController extends Controller
                     }
                 } else {
                     // User has progress but all stages are completed
-                    return response()->json([
-                        'message' => 'همه مراحل تکمیل شده‌اند',
-                        'debug' => 'All stages completed for user',
+                return response()->json([
+                    'message' => 'همه مراحل تکمیل شده‌اند',
+                    'debug' => 'All stages completed for user',
                         'total_stages' => $totalStages,
                         'user_progress_count' => $userProgressCount
-                    ], 200);
+                ], 200);
                 }
             }
 
@@ -544,16 +746,31 @@ class StagePhotoController extends Controller
                 'stored_2_length' => strlen($storedCode2)
             ]);
 
-            // Validate codes
-            $isValid = ($storedCode1 === $inputCode1 && $storedCode2 === $inputCode2) ||
-                      ($storedCode1 === $inputCode2 && $storedCode2 === $inputCode1);
+            // Simple validation - check if codes match in any order
+            $isValid = false;
+            
+            // Method 1: Direct match
+            if ($storedCode1 === $inputCode1 && $storedCode2 === $inputCode2) {
+                $isValid = true;
+            }
+            
+            // Method 2: Swapped match
+            if ($storedCode1 === $inputCode2 && $storedCode2 === $inputCode1) {
+                $isValid = true;
+            }
+            
+            // Method 3: Use model validation as fallback
+            if (!$isValid) {
+                $isValid = $photo->validateCodes($request->code_1, $request->code_2);
+            }
 
             if (!$isValid) {
                 return response()->json([
                     'error' => 'کدهای وارد شده اشتباه است',
                     'debug' => [
                         'input_codes' => [$inputCode1, $inputCode2],
-                        'stored_codes' => [$storedCode1, $storedCode2]
+                        'stored_codes' => [$storedCode1, $storedCode2],
+                        'raw_stored_codes' => [$photo->code_1, $photo->code_2]
                     ]
                 ], 400);
             }
