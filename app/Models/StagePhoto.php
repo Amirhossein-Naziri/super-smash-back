@@ -14,8 +14,6 @@ class StagePhoto extends Model
         'image_path',
         'blurred_image_path',
         'photo_order',
-        'code_1',
-        'code_2',
         'is_unlocked',
         'partially_unlocked'
     ];
@@ -42,37 +40,6 @@ class StagePhoto extends Model
     }
 
     /**
-     * Generate unique codes for this photo
-     */
-    public static function generateUniqueCodes()
-    {
-        do {
-            // Generate codes with lowercase letters and numbers
-            $code1 = strtolower(substr(str_shuffle('abcdefghijklmnopqrstuvwxyz0123456789'), 0, 6));
-            $code2 = strtolower(substr(str_shuffle('abcdefghijklmnopqrstuvwxyz0123456789'), 0, 6));
-            
-            // Ensure codes are clean (no spaces, only alphanumeric)
-            $code1 = preg_replace('/[^a-z0-9]/', '', $code1);
-            $code2 = preg_replace('/[^a-z0-9]/', '', $code2);
-            
-            // Ensure codes are exactly 6 characters
-            if (strlen($code1) < 6) {
-                $code1 = str_pad($code1, 6, '0', STR_PAD_RIGHT);
-            }
-            if (strlen($code2) < 6) {
-                $code2 = str_pad($code2, 6, '0', STR_PAD_RIGHT);
-            }
-            
-        } while (
-            self::where('code_1', $code1)->orWhere('code_2', $code1)->exists() ||
-            self::where('code_1', $code2)->orWhere('code_2', $code2)->exists() ||
-            $code1 === $code2
-        );
-
-        return [$code1, $code2];
-    }
-
-    /**
      * Get photos for a stage in order
      */
     public static function getPhotosForStage($stageId)
@@ -80,33 +47,5 @@ class StagePhoto extends Model
         return self::where('stage_id', $stageId)
                    ->orderBy('photo_order')
                    ->get();
-    }
-
-    /**
-     * Check if first code is valid for partial unlocking
-     */
-    public function validateFirstCode($code)
-    {
-        // Clean and normalize code - remove all whitespace and convert to lowercase
-        $cleanCode = strtolower(trim(preg_replace('/\s+/', '', $code)));
-        $cleanStoredCode1 = strtolower(trim(preg_replace('/\s+/', '', $this->code_1)));
-        $cleanStoredCode2 = strtolower(trim(preg_replace('/\s+/', '', $this->code_2)));
-        
-        return $cleanStoredCode1 === $cleanCode || $cleanStoredCode2 === $cleanCode;
-    }
-
-    /**
-     * Check if both codes are valid for unlocking
-     */
-    public function validateCodes($code1, $code2)
-    {
-        // Clean and normalize codes - remove all whitespace and convert to lowercase
-        $cleanCode1 = strtolower(trim(preg_replace('/\s+/', '', $code1)));
-        $cleanCode2 = strtolower(trim(preg_replace('/\s+/', '', $code2)));
-        $cleanStoredCode1 = strtolower(trim(preg_replace('/\s+/', '', $this->code_1)));
-        $cleanStoredCode2 = strtolower(trim(preg_replace('/\s+/', '', $this->code_2)));
-        
-        return ($cleanStoredCode1 === $cleanCode1 && $cleanStoredCode2 === $cleanCode2) ||
-               ($cleanStoredCode1 === $cleanCode2 && $cleanStoredCode2 === $cleanCode1);
     }
 }

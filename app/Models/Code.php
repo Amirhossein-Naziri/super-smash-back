@@ -28,14 +28,61 @@ class Code extends Model
     }
 
     /**
-     * Generate a unique 6-character code
+     * Generate a unique 6-character code (lowercase)
      */
     public static function generateUniqueCode()
     {
         do {
-            $code = strtoupper(substr(str_shuffle('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'), 0, 6));
+            $code = strtolower(substr(str_shuffle('abcdefghijklmnopqrstuvwxyz0123456789'), 0, 6));
         } while (self::where('code', $code)->exists());
 
         return $code;
+    }
+
+    /**
+     * Validate and use a code for a user
+     */
+    public static function validateAndUseCode($code, $userId)
+    {
+        // Clean and normalize code
+        $cleanCode = strtolower(trim(preg_replace('/\s+/', '', $code)));
+        
+        // Find the code
+        $codeRecord = self::where('code', $cleanCode)
+                         ->where('is_active', true)
+                         ->whereNull('user_id') // Not used yet
+                         ->first();
+        
+        if (!$codeRecord) {
+            return [
+                'success' => false,
+                'message' => 'کد وارد شده اشتباه است یا قبلاً استفاده شده'
+            ];
+        }
+        
+        // Mark code as used
+        $codeRecord->update([
+            'user_id' => $userId,
+            'is_active' => false
+        ]);
+        
+        return [
+            'success' => true,
+            'message' => 'کد با موفقیت اعمال شد',
+            'code' => $codeRecord
+        ];
+    }
+
+    /**
+     * Check if a code is valid (without using it)
+     */
+    public static function isValidCode($code)
+    {
+        $cleanCode = strtolower(trim(preg_replace('/\s+/', '', $code)));
+        
+        return self::where('code', $cleanCode)
+                  ->where('is_active', true)
+                  ->whereNull('user_id')
+                  ->exists();
     }
 } 
