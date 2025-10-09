@@ -426,6 +426,38 @@ class StagePhotoController extends Controller
     }
 
     /**
+     * Debug method to show all codes
+     */
+    public function debugCodes(Request $request)
+    {
+        try {
+            $photos = StagePhoto::select('id', 'photo_order', 'code_1', 'code_2', 'is_unlocked', 'partially_unlocked')->get();
+            
+            $result = [];
+            foreach ($photos as $photo) {
+                $result[] = [
+                    'id' => $photo->id,
+                    'photo_order' => $photo->photo_order,
+                    'code_1' => $photo->code_1,
+                    'code_2' => $photo->code_2,
+                    'is_unlocked' => $photo->is_unlocked,
+                    'partially_unlocked' => $photo->partially_unlocked,
+                    'code_1_length' => strlen($photo->code_1),
+                    'code_2_length' => strlen($photo->code_2)
+                ];
+            }
+            
+            return response()->json([
+                'message' => 'Debug codes retrieved',
+                'photos' => $result
+            ]);
+            
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Error retrieving codes: ' . $e->getMessage()], 500);
+        }
+    }
+
+    /**
      * Clean existing codes in database
      */
     public function cleanExistingCodes(Request $request)
@@ -725,7 +757,7 @@ class StagePhotoController extends Controller
             }
 
             // Clean and normalize code
-            $inputCode = strtoupper(trim(preg_replace('/\s+/', '', $request->code)));
+            $inputCode = strtolower(trim(preg_replace('/\s+/', '', $request->code)));
 
             // Validate first code
             if (!$photo->validateFirstCode($inputCode)) {
@@ -793,11 +825,11 @@ class StagePhotoController extends Controller
             }
 
             // Clean and normalize code
-            $inputCode = strtoupper(trim(preg_replace('/\s+/', '', $request->code)));
+            $inputCode = strtolower(trim(preg_replace('/\s+/', '', $request->code)));
 
             // Get the remaining code (the one that wasn't used for partial unlock)
-            $cleanStoredCode1 = strtoupper(trim(preg_replace('/\s+/', '', $photo->code_1)));
-            $cleanStoredCode2 = strtoupper(trim(preg_replace('/\s+/', '', $photo->code_2)));
+            $cleanStoredCode1 = strtolower(trim(preg_replace('/\s+/', '', $photo->code_1)));
+            $cleanStoredCode2 = strtolower(trim(preg_replace('/\s+/', '', $photo->code_2)));
 
             // Find which code was used for partial unlock by checking which one matches
             $usedCode = null;
@@ -880,11 +912,11 @@ class StagePhotoController extends Controller
                 return response()->json(['message' => 'این عکس قبلاً باز شده است'], 200);
             }
 
-            // Clean and normalize codes - remove all whitespace and convert to uppercase
-            $inputCode1 = strtoupper(trim(preg_replace('/\s+/', '', $request->code_1)));
-            $inputCode2 = strtoupper(trim(preg_replace('/\s+/', '', $request->code_2)));
-            $storedCode1 = strtoupper(trim(preg_replace('/\s+/', '', $photo->code_1)));
-            $storedCode2 = strtoupper(trim(preg_replace('/\s+/', '', $photo->code_2)));
+            // Clean and normalize codes - remove all whitespace and convert to lowercase
+            $inputCode1 = strtolower(trim(preg_replace('/\s+/', '', $request->code_1)));
+            $inputCode2 = strtolower(trim(preg_replace('/\s+/', '', $request->code_2)));
+            $storedCode1 = strtolower(trim(preg_replace('/\s+/', '', $photo->code_1)));
+            $storedCode2 = strtolower(trim(preg_replace('/\s+/', '', $photo->code_2)));
 
             // Debug: Log the codes for troubleshooting
             \Log::info('Code validation attempt', [

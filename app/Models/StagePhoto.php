@@ -47,13 +47,13 @@ class StagePhoto extends Model
     public static function generateUniqueCodes()
     {
         do {
-            // Generate codes with only uppercase letters and numbers
-            $code1 = strtoupper(substr(str_shuffle('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'), 0, 6));
-            $code2 = strtoupper(substr(str_shuffle('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'), 0, 6));
+            // Generate codes with lowercase letters and numbers
+            $code1 = strtolower(substr(str_shuffle('abcdefghijklmnopqrstuvwxyz0123456789'), 0, 6));
+            $code2 = strtolower(substr(str_shuffle('abcdefghijklmnopqrstuvwxyz0123456789'), 0, 6));
             
             // Ensure codes are clean (no spaces, only alphanumeric)
-            $code1 = preg_replace('/[^A-Z0-9]/', '', $code1);
-            $code2 = preg_replace('/[^A-Z0-9]/', '', $code2);
+            $code1 = preg_replace('/[^a-z0-9]/', '', $code1);
+            $code2 = preg_replace('/[^a-z0-9]/', '', $code2);
             
             // Ensure codes are exactly 6 characters
             if (strlen($code1) < 6) {
@@ -87,10 +87,10 @@ class StagePhoto extends Model
      */
     public function validateFirstCode($code)
     {
-        // Clean and normalize code - remove all whitespace and convert to uppercase
-        $cleanCode = strtoupper(trim(preg_replace('/\s+/', '', $code)));
-        $cleanStoredCode1 = strtoupper(trim(preg_replace('/\s+/', '', $this->code_1)));
-        $cleanStoredCode2 = strtoupper(trim(preg_replace('/\s+/', '', $this->code_2)));
+        // Clean and normalize code - remove all whitespace and convert to lowercase
+        $cleanCode = strtolower(trim(preg_replace('/\s+/', '', $code)));
+        $cleanStoredCode1 = strtolower(trim(preg_replace('/\s+/', '', $this->code_1)));
+        $cleanStoredCode2 = strtolower(trim(preg_replace('/\s+/', '', $this->code_2)));
         
         return $cleanStoredCode1 === $cleanCode || $cleanStoredCode2 === $cleanCode;
     }
@@ -100,11 +100,11 @@ class StagePhoto extends Model
      */
     public function validateCodes($code1, $code2)
     {
-        // Clean and normalize codes - remove all whitespace and convert to uppercase
-        $cleanCode1 = strtoupper(trim(preg_replace('/\s+/', '', $code1)));
-        $cleanCode2 = strtoupper(trim(preg_replace('/\s+/', '', $code2)));
-        $cleanStoredCode1 = strtoupper(trim(preg_replace('/\s+/', '', $this->code_1)));
-        $cleanStoredCode2 = strtoupper(trim(preg_replace('/\s+/', '', $this->code_2)));
+        // Clean and normalize codes - remove all whitespace and convert to lowercase
+        $cleanCode1 = strtolower(trim(preg_replace('/\s+/', '', $code1)));
+        $cleanCode2 = strtolower(trim(preg_replace('/\s+/', '', $code2)));
+        $cleanStoredCode1 = strtolower(trim(preg_replace('/\s+/', '', $this->code_1)));
+        $cleanStoredCode2 = strtolower(trim(preg_replace('/\s+/', '', $this->code_2)));
         
         return ($cleanStoredCode1 === $cleanCode1 && $cleanStoredCode2 === $cleanCode2) ||
                ($cleanStoredCode1 === $cleanCode2 && $cleanStoredCode2 === $cleanCode1);
