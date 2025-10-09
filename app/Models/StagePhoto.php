@@ -16,11 +16,13 @@ class StagePhoto extends Model
         'photo_order',
         'code_1',
         'code_2',
-        'is_unlocked'
+        'is_unlocked',
+        'partially_unlocked'
     ];
 
     protected $casts = [
         'is_unlocked' => 'boolean',
+        'partially_unlocked' => 'boolean',
     ];
 
     /**
@@ -78,6 +80,19 @@ class StagePhoto extends Model
         return self::where('stage_id', $stageId)
                    ->orderBy('photo_order')
                    ->get();
+    }
+
+    /**
+     * Check if first code is valid for partial unlocking
+     */
+    public function validateFirstCode($code)
+    {
+        // Clean and normalize code - remove all whitespace and convert to uppercase
+        $cleanCode = strtoupper(trim(preg_replace('/\s+/', '', $code)));
+        $cleanStoredCode1 = strtoupper(trim(preg_replace('/\s+/', '', $this->code_1)));
+        $cleanStoredCode2 = strtoupper(trim(preg_replace('/\s+/', '', $this->code_2)));
+        
+        return $cleanStoredCode1 === $cleanCode || $cleanStoredCode2 === $cleanCode;
     }
 
     /**

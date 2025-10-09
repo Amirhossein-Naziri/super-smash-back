@@ -78,6 +78,8 @@ Route::prefix('rewards')->group(function () {
 Route::prefix('stage-photos')->group(function () {
     Route::get('/current-stage', [StagePhotoController::class, 'getCurrentStagePhotos']);
     Route::post('/unlock', [StagePhotoController::class, 'unlockPhoto']);
+    Route::post('/partially-unlock', [StagePhotoController::class, 'partiallyUnlockPhoto']);
+    Route::post('/fully-unlock', [StagePhotoController::class, 'fullyUnlockPhoto']);
     Route::post('/upload-voice', [StagePhotoController::class, 'uploadVoiceRecording']);
     Route::get('/completion-status', [StagePhotoController::class, 'getStageCompletionStatus']);
     Route::post('/clean-codes', [StagePhotoController::class, 'cleanExistingCodes']);

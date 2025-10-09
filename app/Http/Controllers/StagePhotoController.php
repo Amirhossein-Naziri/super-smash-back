@@ -649,6 +649,7 @@ class StagePhotoController extends Controller
                     'photo_order' => $photo->photo_order,
                     'image_url' => Storage::disk('public')->url($photo->blurred_image_path),
                     'is_unlocked' => $photo->is_unlocked,
+                    'partially_unlocked' => $photo->partially_unlocked,
                     'has_voice_recording' => $hasRecording,
                     'needs_codes' => !$photo->is_unlocked
                 ];
@@ -692,7 +693,162 @@ class StagePhotoController extends Controller
     }
 
     /**
-     * Unlock photo with codes
+     * Partially unlock photo with first code
+     */
+    public function partiallyUnlockPhoto(Request $request)
+    {
+        try {
+            // دریافت telegram_user_id از request
+            $telegramUserId = $request->input('telegram_user_id');
+            
+            if (!$telegramUserId) {
+                return response()->json(['error' => 'شناسه کاربر تلگرام الزامی است'], 400);
+            }
+
+            // پیدا کردن کاربر بر اساس telegram_user_id
+            $user = \App\Models\User::where('telegram_user_id', $telegramUserId)->first();
+            
+            if (!$user) {
+                return response()->json(['error' => 'کاربر یافت نشد'], 404);
+            }
+
+            $request->validate([
+                'photo_id' => 'required|exists:stage_photos,id',
+                'code' => 'required|string|size:6'
+            ]);
+
+            $photo = StagePhoto::find($request->photo_id);
+            
+            // Check if photo is already fully unlocked
+            if ($photo->is_unlocked) {
+                return response()->json(['message' => 'این عکس قبلاً کاملاً باز شده است'], 200);
+            }
+
+            // Clean and normalize code
+            $inputCode = strtoupper(trim(preg_replace('/\s+/', '', $request->code)));
+
+            // Validate first code
+            if (!$photo->validateFirstCode($inputCode)) {
+                return response()->json([
+                    'error' => 'کد وارد شده اشتباه است'
+                ], 400);
+            }
+
+            // Partially unlock photo
+            $photo->partially_unlocked = true;
+            $photo->save();
+
+            return response()->json([
+                'message' => 'کد اول صحیح است! حالا کد دوم را وارد کنید.',
+                'partially_unlocked_image_url' => Storage::disk('public')->url($photo->blurred_image_path),
+                'needs_second_code' => true
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Error partially unlocking photo', [
+                'telegram_user_id' => $request->input('telegram_user_id'),
+                'photo_id' => $request->photo_id,
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json(['error' => 'خطا در باز کردن جزئی عکس'], 500);
+        }
+    }
+
+    /**
+     * Fully unlock photo with second code
+     */
+    public function fullyUnlockPhoto(Request $request)
+    {
+        try {
+            // دریافت telegram_user_id از request
+            $telegramUserId = $request->input('telegram_user_id');
+            
+            if (!$telegramUserId) {
+                return response()->json(['error' => 'شناسه کاربر تلگرام الزامی است'], 400);
+            }
+
+            // پیدا کردن کاربر بر اساس telegram_user_id
+            $user = \App\Models\User::where('telegram_user_id', $telegramUserId)->first();
+            
+            if (!$user) {
+                return response()->json(['error' => 'کاربر یافت نشد'], 404);
+            }
+
+            $request->validate([
+                'photo_id' => 'required|exists:stage_photos,id',
+                'code' => 'required|string|size:6'
+            ]);
+
+            $photo = StagePhoto::find($request->photo_id);
+            
+            // Check if photo is already fully unlocked
+            if ($photo->is_unlocked) {
+                return response()->json(['message' => 'این عکس قبلاً کاملاً باز شده است'], 200);
+            }
+
+            // Check if photo is partially unlocked
+            if (!$photo->partially_unlocked) {
+                return response()->json(['error' => 'ابتدا باید کد اول را وارد کنید'], 400);
+            }
+
+            // Clean and normalize code
+            $inputCode = strtoupper(trim(preg_replace('/\s+/', '', $request->code)));
+
+            // Get the remaining code (the one that wasn't used for partial unlock)
+            $cleanStoredCode1 = strtoupper(trim(preg_replace('/\s+/', '', $photo->code_1)));
+            $cleanStoredCode2 = strtoupper(trim(preg_replace('/\s+/', '', $photo->code_2)));
+
+            // Find which code was used for partial unlock by checking which one matches
+            $usedCode = null;
+            if ($photo->validateFirstCode($cleanStoredCode1)) {
+                $usedCode = $cleanStoredCode1;
+                $remainingCode = $cleanStoredCode2;
+            } else {
+                $usedCode = $cleanStoredCode2;
+                $remainingCode = $cleanStoredCode1;
+            }
+
+            // Validate second code
+            if ($remainingCode !== $inputCode) {
+                return response()->json([
+                    'error' => 'کد دوم اشتباه است'
+                ], 400);
+            }
+
+            // Fully unlock photo
+            $photo->is_unlocked = true;
+            $photo->save();
+
+            // Update user progress
+            $progress = UserStageProgress::getOrCreateProgress($user->id, $photo->stage_id);
+            $unlockedCount = StagePhoto::where('stage_id', $photo->stage_id)
+                                      ->where('is_unlocked', true)
+                                      ->count();
+            $progress->updateUnlockedPhotos($unlockedCount);
+
+            return response()->json([
+                'message' => 'عکس با موفقیت کاملاً باز شد!',
+                'unlocked_image_url' => Storage::disk('public')->url($photo->image_path),
+                'progress' => [
+                    'unlocked_photos_count' => $progress->unlocked_photos_count,
+                    'completed_voice_recordings' => $progress->completed_voice_recordings
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Error fully unlocking photo', [
+                'telegram_user_id' => $request->input('telegram_user_id'),
+                'photo_id' => $request->photo_id,
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json(['error' => 'خطا در باز کردن کامل عکس'], 500);
+        }
+    }
+
+    /**
+     * Unlock photo with codes (legacy method - kept for backward compatibility)
      */
     public function unlockPhoto(Request $request)
     {
@@ -761,7 +917,7 @@ class StagePhotoController extends Controller
             
             // Method 3: Use model validation as fallback
             if (!$isValid) {
-                $isValid = $photo->validateCodes($request->code_1, $request->code_2);
+                $isValid = $photo->validateCodes($inputCode1, $inputCode2);
             }
 
             if (!$isValid) {
