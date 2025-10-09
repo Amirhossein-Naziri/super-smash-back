@@ -23,8 +23,16 @@ try {
         $oldCode1 = $photo->code_1;
         $oldCode2 = $photo->code_2;
         
-        $newCode1 = strtolower(trim(preg_replace('/\s+/', '', $oldCode1)));
-        $newCode2 = strtolower(trim(preg_replace('/\s+/', '', $oldCode2)));
+        $newCode1 = strtolower(trim(preg_replace('/[^a-zA-Z0-9]/', '', $oldCode1)));
+        $newCode2 = strtolower(trim(preg_replace('/[^a-zA-Z0-9]/', '', $oldCode2)));
+        
+        // Ensure codes are exactly 6 characters
+        if (strlen($newCode1) < 6) {
+            $newCode1 = str_pad($newCode1, 6, '0', STR_PAD_RIGHT);
+        }
+        if (strlen($newCode2) < 6) {
+            $newCode2 = str_pad($newCode2, 6, '0', STR_PAD_RIGHT);
+        }
         
         // Update the codes
         DB::table('stage_photos')

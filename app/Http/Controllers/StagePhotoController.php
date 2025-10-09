@@ -426,38 +426,6 @@ class StagePhotoController extends Controller
     }
 
     /**
-     * Debug method to show all codes
-     */
-    public function debugCodes(Request $request)
-    {
-        try {
-            $photos = StagePhoto::select('id', 'photo_order', 'code_1', 'code_2', 'is_unlocked', 'partially_unlocked')->get();
-            
-            $result = [];
-            foreach ($photos as $photo) {
-                $result[] = [
-                    'id' => $photo->id,
-                    'photo_order' => $photo->photo_order,
-                    'code_1' => $photo->code_1,
-                    'code_2' => $photo->code_2,
-                    'is_unlocked' => $photo->is_unlocked,
-                    'partially_unlocked' => $photo->partially_unlocked,
-                    'code_1_length' => strlen($photo->code_1),
-                    'code_2_length' => strlen($photo->code_2)
-                ];
-            }
-            
-            return response()->json([
-                'message' => 'Debug codes retrieved',
-                'photos' => $result
-            ]);
-            
-        } catch (\Exception $e) {
-            return response()->json(['error' => 'Error retrieving codes: ' . $e->getMessage()], 500);
-        }
-    }
-
-    /**
      * Clean existing codes in database
      */
     public function cleanExistingCodes(Request $request)
@@ -488,9 +456,9 @@ class StagePhotoController extends Controller
                 $oldCode1 = $photo->code_1;
                 $oldCode2 = $photo->code_2;
                 
-                // Clean codes
-                $cleanCode1 = strtoupper(trim(preg_replace('/[^A-Z0-9]/', '', $photo->code_1)));
-                $cleanCode2 = strtoupper(trim(preg_replace('/[^A-Z0-9]/', '', $photo->code_2)));
+                // Clean codes - convert to lowercase
+                $cleanCode1 = strtolower(trim(preg_replace('/[^a-zA-Z0-9]/', '', $photo->code_1)));
+                $cleanCode2 = strtolower(trim(preg_replace('/[^a-zA-Z0-9]/', '', $photo->code_2)));
                 
                 // Ensure codes are exactly 6 characters
                 if (strlen($cleanCode1) < 6) {
