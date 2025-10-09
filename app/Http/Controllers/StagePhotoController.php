@@ -759,8 +759,32 @@ class StagePhotoController extends Controller
             // Clean and normalize code
             $inputCode = strtolower(trim(preg_replace('/\s+/', '', $request->code)));
 
+            // Debug: Log the code validation attempt
+            \Log::info('PARTIAL UNLOCK - Code validation attempt', [
+                'photo_id' => $photo->id,
+                'photo_order' => $photo->photo_order,
+                'raw_input_code' => $request->code,
+                'cleaned_input_code' => $inputCode,
+                'input_code_length' => strlen($inputCode),
+                'stored_code_1' => $photo->code_1,
+                'stored_code_2' => $photo->code_2,
+                'stored_code_1_length' => strlen($photo->code_1),
+                'stored_code_2_length' => strlen($photo->code_2),
+                'telegram_user_id' => $telegramUserId,
+                'user_id' => $user->id,
+                'timestamp' => now()->toDateTimeString()
+            ]);
+
             // Validate first code
             if (!$photo->validateFirstCode($inputCode)) {
+                \Log::warning('PARTIAL UNLOCK - Code validation failed', [
+                    'photo_id' => $photo->id,
+                    'input_code' => $inputCode,
+                    'stored_codes' => [$photo->code_1, $photo->code_2],
+                    'telegram_user_id' => $telegramUserId,
+                    'timestamp' => now()->toDateTimeString()
+                ]);
+                
                 return response()->json([
                     'error' => 'کد وارد شده اشتباه است'
                 ], 400);
@@ -831,6 +855,22 @@ class StagePhotoController extends Controller
             $cleanStoredCode1 = strtolower(trim(preg_replace('/\s+/', '', $photo->code_1)));
             $cleanStoredCode2 = strtolower(trim(preg_replace('/\s+/', '', $photo->code_2)));
 
+            // Debug: Log the code validation attempt
+            \Log::info('FULL UNLOCK - Code validation attempt', [
+                'photo_id' => $photo->id,
+                'photo_order' => $photo->photo_order,
+                'raw_input_code' => $request->code,
+                'cleaned_input_code' => $inputCode,
+                'input_code_length' => strlen($inputCode),
+                'stored_code_1' => $photo->code_1,
+                'stored_code_2' => $photo->code_2,
+                'clean_stored_code_1' => $cleanStoredCode1,
+                'clean_stored_code_2' => $cleanStoredCode2,
+                'telegram_user_id' => $telegramUserId,
+                'user_id' => $user->id,
+                'timestamp' => now()->toDateTimeString()
+            ]);
+
             // Find which code was used for partial unlock by checking which one matches
             $usedCode = null;
             if ($photo->validateFirstCode($cleanStoredCode1)) {
@@ -841,8 +881,26 @@ class StagePhotoController extends Controller
                 $remainingCode = $cleanStoredCode1;
             }
 
+            \Log::info('FULL UNLOCK - Code analysis', [
+                'photo_id' => $photo->id,
+                'used_code' => $usedCode,
+                'remaining_code' => $remainingCode,
+                'input_code' => $inputCode,
+                'codes_match' => ($remainingCode === $inputCode),
+                'timestamp' => now()->toDateTimeString()
+            ]);
+
             // Validate second code
             if ($remainingCode !== $inputCode) {
+                \Log::warning('FULL UNLOCK - Code validation failed', [
+                    'photo_id' => $photo->id,
+                    'input_code' => $inputCode,
+                    'remaining_code' => $remainingCode,
+                    'used_code' => $usedCode,
+                    'telegram_user_id' => $telegramUserId,
+                    'timestamp' => now()->toDateTimeString()
+                ]);
+                
                 return response()->json([
                     'error' => 'کد دوم اشتباه است'
                 ], 400);
@@ -919,19 +977,24 @@ class StagePhotoController extends Controller
             $storedCode2 = strtolower(trim(preg_replace('/\s+/', '', $photo->code_2)));
 
             // Debug: Log the codes for troubleshooting
-            \Log::info('Code validation attempt', [
+            \Log::info('LEGACY UNLOCK - Code validation attempt', [
                 'photo_id' => $photo->id,
-                'input_code_1' => $inputCode1,
-                'input_code_2' => $inputCode2,
-                'stored_code_1' => $storedCode1,
-                'stored_code_2' => $storedCode2,
-                'raw_stored_code_1' => $photo->code_1,
-                'raw_stored_code_2' => $photo->code_2,
-                'telegram_user_id' => $telegramUserId,
-                'code_1_length' => strlen($inputCode1),
-                'code_2_length' => strlen($inputCode2),
+                'photo_order' => $photo->photo_order,
+                'raw_input_code_1' => $request->code_1,
+                'raw_input_code_2' => $request->code_2,
+                'cleaned_input_code_1' => $inputCode1,
+                'cleaned_input_code_2' => $inputCode2,
+                'input_code_1_length' => strlen($inputCode1),
+                'input_code_2_length' => strlen($inputCode2),
+                'stored_code_1' => $photo->code_1,
+                'stored_code_2' => $photo->code_2,
+                'cleaned_stored_code_1' => $storedCode1,
+                'cleaned_stored_code_2' => $storedCode2,
                 'stored_1_length' => strlen($storedCode1),
-                'stored_2_length' => strlen($storedCode2)
+                'stored_2_length' => strlen($storedCode2),
+                'telegram_user_id' => $telegramUserId,
+                'user_id' => $user->id,
+                'timestamp' => now()->toDateTimeString()
             ]);
 
             // Simple validation - check if codes match in any order
@@ -953,6 +1016,15 @@ class StagePhotoController extends Controller
             }
 
             if (!$isValid) {
+                \Log::warning('LEGACY UNLOCK - Code validation failed', [
+                    'photo_id' => $photo->id,
+                    'input_codes' => [$inputCode1, $inputCode2],
+                    'stored_codes' => [$storedCode1, $storedCode2],
+                    'raw_stored_codes' => [$photo->code_1, $photo->code_2],
+                    'telegram_user_id' => $telegramUserId,
+                    'timestamp' => now()->toDateTimeString()
+                ]);
+                
                 return response()->json([
                     'error' => 'کدهای وارد شده اشتباه است',
                     'debug' => [
