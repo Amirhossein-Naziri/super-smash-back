@@ -644,10 +644,15 @@ class StagePhotoController extends Controller
             $photosData = $photos->map(function($photo) use ($progress, $voiceRecordings) {
                 $hasRecording = $voiceRecordings->where('stage_photo_id', $photo->id)->isNotEmpty();
                 
+                // Use original image if unlocked or partially unlocked, blurred image if locked
+                $imageUrl = ($photo->is_unlocked || $photo->partially_unlocked)
+                    ? Storage::disk('public')->url($photo->image_path)
+                    : Storage::disk('public')->url($photo->blurred_image_path);
+                
                 return [
                     'id' => $photo->id,
                     'photo_order' => $photo->photo_order,
-                    'image_url' => Storage::disk('public')->url($photo->blurred_image_path),
+                    'image_url' => $imageUrl,
                     'is_unlocked' => $photo->is_unlocked,
                     'partially_unlocked' => $photo->partially_unlocked,
                     'has_voice_recording' => $hasRecording,
@@ -763,7 +768,7 @@ class StagePhotoController extends Controller
 
             return response()->json([
                 'message' => 'کد اول صحیح است! حالا کد دوم را وارد کنید.',
-                'partially_unlocked_image_url' => Storage::disk('public')->url($photo->blurred_image_path),
+                'partially_unlocked_image_url' => Storage::disk('public')->url($photo->image_path),
                 'needs_second_code' => true
             ]);
 
