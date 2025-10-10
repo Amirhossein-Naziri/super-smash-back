@@ -664,6 +664,7 @@ class StagePhotoController extends Controller
                 'photos' => $photosData,
                 'progress' => [
                     'unlocked_photos_count' => $progress->unlocked_photos_count,
+                    'total_photos' => $photosCount,
                     'completed_voice_recordings' => $progress->completed_voice_recordings,
                     'stage_completed' => $progress->stage_completed
                 ],
@@ -857,11 +858,14 @@ class StagePhotoController extends Controller
                                       ->count();
             $progress->updateUnlockedPhotos($unlockedCount);
 
+            $totalPhotos = StagePhoto::where('stage_id', $photo->stage_id)->count();
+            
             return response()->json([
                 'message' => 'عکس با موفقیت کاملاً باز شد!',
                 'unlocked_image_url' => Storage::disk('public')->url($photo->image_path),
                 'progress' => [
                     'unlocked_photos_count' => $progress->unlocked_photos_count,
+                    'total_photos' => $totalPhotos,
                     'completed_voice_recordings' => $progress->completed_voice_recordings
                 ]
             ]);
@@ -970,11 +974,14 @@ class StagePhotoController extends Controller
                                       ->count();
             $progress->updateUnlockedPhotos($unlockedCount);
 
+            $totalPhotos = StagePhoto::where('stage_id', $photo->stage_id)->count();
+            
             return response()->json([
                 'message' => 'عکس با موفقیت باز شد!',
                 'unlocked_image_url' => Storage::disk('public')->url($photo->image_path),
                 'progress' => [
                     'unlocked_photos_count' => $progress->unlocked_photos_count,
+                    'total_photos' => $totalPhotos,
                     'completed_voice_recordings' => $progress->completed_voice_recordings
                 ]
             ]);
@@ -1047,12 +1054,14 @@ class StagePhotoController extends Controller
 
             // Get updated progress
             $progress = UserStageProgress::getOrCreateProgress($user->id, $photo->stage_id);
+            $totalPhotos = StagePhoto::where('stage_id', $photo->stage_id)->count();
             
             return response()->json([
                 'message' => 'ضبط صوتی با موفقیت ذخیره شد!',
                 'recording_id' => $recording->id,
                 'progress' => [
                     'unlocked_photos_count' => $progress->unlocked_photos_count,
+                    'total_photos' => $totalPhotos,
                     'completed_voice_recordings' => $progress->completed_voice_recordings,
                     'stage_completed' => $progress->stage_completed
                 ]
