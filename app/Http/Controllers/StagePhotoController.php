@@ -10,6 +10,8 @@ use App\Models\UserVoiceRecording;
 use App\Services\VoiceRecordingService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 
 class StagePhotoController extends Controller
 {
@@ -579,15 +581,20 @@ class StagePhotoController extends Controller
                 return response()->json(['error' => 'شناسه کاربر تلگرام الزامی است'], 400);
             }
 
-            // پیدا کردن کاربر بر اساس telegram_user_id
-            $user = \App\Models\User::where('telegram_user_id', $telegramUserId)->first();
+            // پیدا کردن کاربر بر اساس telegram_user_id با cache
+            $user = Cache::remember("user_{$telegramUserId}", 300, function() use ($telegramUserId) {
+                return \App\Models\User::where('telegram_user_id', $telegramUserId)->first();
+            });
             
             if (!$user) {
                 return response()->json(['error' => 'کاربر یافت نشد'], 404);
             }
 
-            // Check if there are any stages in the database
-            $totalStages = Stage::count();
+            // Check if there are any stages in the database with cache
+            $totalStages = Cache::remember('total_stages_count', 600, function() {
+                return Stage::count();
+            });
+            
             if ($totalStages === 0) {
                 return response()->json([
                     'error' => 'هیچ مرحله‌ای در سیستم وجود ندارد',
@@ -595,8 +602,10 @@ class StagePhotoController extends Controller
                 ], 404);
             }
 
-            // Get next incomplete stage for user
-            $stage = UserStageProgress::getNextIncompleteStage($user->id);
+            // Get next incomplete stage for user with cache
+            $stage = Cache::remember("next_stage_user_{$user->id}", 300, function() use ($user) {
+                return UserStageProgress::getNextIncompleteStage($user->id);
+            });
             
             if (!$stage) {
                 // Check if user has any progress at all
