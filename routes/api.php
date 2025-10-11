@@ -85,8 +85,10 @@ Route::prefix('stage-photos')->group(function () {
     Route::post('/create-test-stage', [StagePhotoController::class, 'createTestStage']);
 });
 
-
-    Route::get('/current-stage', [GameController::class, 'getCurrentStage']);
-    Route::post('/submit-answer', [GameController::class, 'submitAnswer']);
-    Route::get('/progress', [GameController::class, 'getUserProgress']);
-
+// Admin routes
+Route::prefix('admin')->group(function () {
+    Route::get('/stages', [App\Http\Controllers\AdminController::class, 'getStages']);
+    Route::get('/stages/{stageId}/users', [App\Http\Controllers\AdminController::class, 'getStageUsers']);
+    Route::get('/stages/{stageId}/users/{userId}/recordings', [App\Http\Controllers\AdminController::class, 'getUserStageRecordings']);
+    Route::get('/stages/{stageId}/users/{userId}/combined', [App\Http\Controllers\AdminController::class, 'getCombinedVoiceRecording']);
+});
