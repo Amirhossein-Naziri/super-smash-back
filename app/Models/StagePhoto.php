@@ -48,4 +48,21 @@ class StagePhoto extends Model
                    ->orderBy('photo_order')
                    ->get();
     }
+
+    /**
+     * Generate unique codes for a photo
+     */
+    public static function generateUniqueCodes()
+    {
+        do {
+            $code1 = strtoupper(substr(str_shuffle('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'), 0, 6));
+            $code2 = strtoupper(substr(str_shuffle('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'), 0, 6));
+        } while (
+            \App\Models\Code::where('code', $code1)->exists() || 
+            \App\Models\Code::where('code', $code2)->exists() ||
+            $code1 === $code2
+        );
+
+        return [$code1, $code2];
+    }
 }

@@ -525,8 +525,6 @@ class TelegramAdminService
             $text .= "📸 عکس‌های مرحله:\n\n";
             foreach ($stage->photos as $photo) {
                 $text .= "🔹 عکس {$photo->photo_order}\n";
-                $text .= "   کد ۱: {$photo->code_1}\n";
-                $text .= "   کد ۲: {$photo->code_2}\n";
                 
                 // Get users who unlocked this photo
                 $unlockedUsers = \App\Models\UserUnlockedPhoto::getUsersForPhoto($photo->id);
@@ -891,16 +889,11 @@ class TelegramAdminService
                 $state['current_photo']
             );
 
-            // Generate unique codes for this photo
-            $codes = StagePhoto::generateUniqueCodes();
-
             // Save photo data to state
             $state['stage_data']['photos'][] = [
                 'photo_order' => $state['current_photo'],
                 'original_path' => $photoData['original_path'],
-                'blurred_path' => $photoData['blurred_path'],
-                'code_1' => $codes[0],
-                'code_2' => $codes[1]
+                'blurred_path' => $photoData['blurred_path']
             ];
 
             $state['photos_uploaded']++;
@@ -911,9 +904,6 @@ class TelegramAdminService
                 $this->setAdminState($chatId, $state);
                 
                 $text = "✅ عکس شماره {$state['photos_uploaded']} از ۶ ذخیره شد!\n\n";
-                $text .= "کدهای این عکس:\n";
-                $text .= "🔑 کد ۱: {$codes[0]}\n";
-                $text .= "🔑 کد ۲: {$codes[1]}\n\n";
                 $text .= "عکس شماره {$state['current_photo']} از ۶ را ارسال کنید:";
                 
                 $this->sendMessage($chatId, $text);
@@ -953,8 +943,6 @@ class TelegramAdminService
                     'image_path' => $photoData['original_path'],
                     'blurred_image_path' => $photoData['blurred_path'],
                     'photo_order' => $photoData['photo_order'],
-                    'code_1' => $photoData['code_1'],
-                    'code_2' => $photoData['code_2'],
                     'is_unlocked' => false
                 ]);
             }
@@ -968,7 +956,7 @@ class TelegramAdminService
             $text .= "عنوان: {$state['stage_data']['title']}\n";
             $text .= "امتیاز: {$stage->points}\n";
             $text .= "تعداد عکس‌ها: ۶\n\n";
-            $text .= "✅ همه عکس‌ها و کدهای مربوطه ذخیره شدند.";
+            $text .= "✅ همه عکس‌ها ذخیره شدند.";
 
             $keyboard = [
                 [
