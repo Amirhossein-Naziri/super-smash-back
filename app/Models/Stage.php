@@ -36,6 +36,14 @@ class Stage extends Model
     }
 
     /**
+     * Get voice recordings for this stage through photos
+     */
+    public function voiceRecordings()
+    {
+        return $this->hasManyThrough(UserVoiceRecording::class, StagePhoto::class, 'stage_id', 'stage_photo_id');
+    }
+
+    /**
      * Get the next incomplete stage
      */
     public static function getNextIncompleteStage()

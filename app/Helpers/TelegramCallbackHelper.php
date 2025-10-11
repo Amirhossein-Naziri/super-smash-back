@@ -30,6 +30,31 @@ class TelegramCallbackHelper
             ];
         }
         
+        if (strpos($callbackData, 'view_voice_stage_') === 0) {
+            return [
+                'action' => 'view_voice_stage',
+                'stage_id' => (int) str_replace('view_voice_stage_', '', $callbackData)
+            ];
+        }
+        
+        if (strpos($callbackData, 'view_user_recordings_') === 0) {
+            $parts = explode('_', str_replace('view_user_recordings_', '', $callbackData));
+            return [
+                'action' => 'view_user_recordings',
+                'stage_id' => (int) $parts[0],
+                'user_id' => (int) $parts[1]
+            ];
+        }
+        
+        if (strpos($callbackData, 'play_combined_voice_') === 0) {
+            $parts = explode('_', str_replace('play_combined_voice_', '', $callbackData));
+            return [
+                'action' => 'play_combined_voice',
+                'stage_id' => (int) $parts[0],
+                'user_id' => (int) $parts[1]
+            ];
+        }
+        
         return [
             'action' => $callbackData,
             'parameters' => []

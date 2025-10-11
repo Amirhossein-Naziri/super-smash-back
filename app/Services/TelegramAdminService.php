@@ -1003,6 +1003,187 @@ class TelegramAdminService
     }
 
     /**
+     * Send voice settings menu
+     */
+    public function sendVoiceSettingsMenu($chatId): void
+    {
+        $text = "🎤 تنظیمات ویس‌ها\n\nگزینه مورد نظر را انتخاب کنید:";
+        $this->sendMessage($chatId, $text, config('telegram.keyboards.voice_settings'));
+    }
+
+    /**
+     * Show voice stages list
+     */
+    public function showVoiceStagesList($chatId): void
+    {
+        $stages = Stage::withCount(['photos', 'voiceRecordings'])->orderBy('stage_number')->get();
+        
+        if ($stages->isEmpty()) {
+            $text = "📋 لیست مراحل ویس‌ها\n\nهیچ مرحله‌ای یافت نشد.";
+            $keyboard = [
+                [
+                    ['text' => 'بازگشت', 'callback_data' => 'admin_voice_settings'],
+                ]
+            ];
+        } else {
+            $text = "📋 لیست مراحل ویس‌ها\n\n";
+            $keyboard = [];
+            
+            foreach ($stages as $stage) {
+                $voiceCount = $stage->voice_recordings_count;
+                $status = $voiceCount > 0 ? "🎤 {$voiceCount} ویس" : "🔇 بدون ویس";
+                
+                $text .= "📖 مرحله {$stage->stage_number}\n";
+                $text .= "   📸 {$stage->photos_count} عکس\n";
+                $text .= "   {$status}\n\n";
+                
+                $keyboard[] = [
+                    ['text' => "مرحله {$stage->stage_number}", 'callback_data' => "view_voice_stage_{$stage->id}"]
+                ];
+            }
+            
+            $keyboard[] = [
+                ['text' => 'بازگشت', 'callback_data' => 'admin_voice_settings'],
+            ];
+        }
+
+        $this->sendMessage($chatId, $text, $keyboard);
+    }
+
+    /**
+     * Show voice stage users
+     */
+    public function showVoiceStageUsers($chatId, $stageId): void
+    {
+        $stage = Stage::find($stageId);
+        if (!$stage) {
+            $this->sendErrorMessage($chatId, 'مرحله یافت نشد.');
+            return;
+        }
+
+        // Get users who have voice recordings for this stage
+        $users = \App\Models\User::whereHas('voiceRecordings', function($query) use ($stageId) {
+            $query->whereHas('stagePhoto', function($q) use ($stageId) {
+                $q->where('stage_id', $stageId);
+            });
+        })->with(['voiceRecordings' => function($query) use ($stageId) {
+            $query->whereHas('stagePhoto', function($q) use ($stageId) {
+                $q->where('stage_id', $stageId);
+            });
+        }])->get();
+
+        if ($users->isEmpty()) {
+            $text = "👥 کاربران مرحله {$stage->stage_number}\n\nهیچ کاربری ویس ضبط نکرده است.";
+            $keyboard = [
+                [
+                    ['text' => 'بازگشت', 'callback_data' => 'admin_voice_stages'],
+                ]
+            ];
+        } else {
+            $text = "👥 کاربران مرحله {$stage->stage_number}\n\n";
+            $keyboard = [];
+            
+            foreach ($users as $user) {
+                $recordingCount = $user->voiceRecordings->count();
+                $text .= "👤 {$user->telegram_first_name}\n";
+                $text .= "   🎤 {$recordingCount} ویس ضبط شده\n\n";
+                
+                $keyboard[] = [
+                    ['text' => $user->telegram_first_name, 'callback_data' => "view_user_recordings_{$stageId}_{$user->id}"]
+                ];
+            }
+            
+            $keyboard[] = [
+                ['text' => 'بازگشت', 'callback_data' => 'admin_voice_stages'],
+            ];
+        }
+
+        $this->sendMessage($chatId, $text, $keyboard);
+    }
+
+    /**
+     * Show user recordings
+     */
+    public function showUserRecordings($chatId, $stageId, $userId): void
+    {
+        $user = \App\Models\User::find($userId);
+        $stage = Stage::find($stageId);
+        
+        if (!$user || !$stage) {
+            $this->sendErrorMessage($chatId, 'کاربر یا مرحله یافت نشد.');
+            return;
+        }
+
+        $recordings = \App\Models\UserVoiceRecording::where('user_id', $userId)
+            ->whereHas('stagePhoto', function($query) use ($stageId) {
+                $query->where('stage_id', $stageId);
+            })
+            ->with('stagePhoto')
+            ->orderBy('created_at')
+            ->get();
+
+        if ($recordings->isEmpty()) {
+            $text = "🎤 ویس‌های {$user->telegram_first_name} در مرحله {$stage->stage_number}\n\nهیچ ویسی یافت نشد.";
+            $keyboard = [
+                [
+                    ['text' => 'بازگشت', 'callback_data' => "view_voice_stage_{$stageId}"],
+                ]
+            ];
+        } else {
+            $text = "🎤 ویس‌های {$user->telegram_first_name} در مرحله {$stage->stage_number}\n\n";
+            $text .= "📊 تعداد ویس‌ها: {$recordings->count()}\n\n";
+            
+            foreach ($recordings as $recording) {
+                $photoOrder = $recording->stagePhoto->photo_order;
+                $createdAt = $recording->created_at->format('Y/m/d H:i');
+                $text .= "🎵 عکس {$photoOrder} - {$createdAt}\n";
+            }
+            
+            $keyboard = [
+                [
+                    ['text' => '🎵 پخش ویس کامل', 'callback_data' => "play_combined_voice_{$stageId}_{$userId}"],
+                ],
+                [
+                    ['text' => 'بازگشت', 'callback_data' => "view_voice_stage_{$stageId}"],
+                ]
+            ];
+        }
+
+        $this->sendMessage($chatId, $text, $keyboard);
+    }
+
+    /**
+     * Send combined voice recording
+     */
+    public function sendCombinedVoiceRecording($chatId, $stageId, $userId): void
+    {
+        try {
+            // Make API call to get combined voice recording
+            $response = \Http::get(config('app.url') . "/api/admin/stages/{$stageId}/users/{$userId}/combined");
+            
+            if ($response->successful()) {
+                $data = $response->json();
+                $audioUrl = $data['combined_audio_url'] ?? null;
+                
+                if ($audioUrl) {
+                    // Send audio file to Telegram
+                    $this->telegram->sendAudio([
+                        'chat_id' => $chatId,
+                        'audio' => $audioUrl,
+                        'caption' => "🎵 ویس کامل کاربر در این مرحله"
+                    ]);
+                } else {
+                    $this->sendErrorMessage($chatId, 'خطا در دریافت ویس ترکیبی.');
+                }
+            } else {
+                $this->sendErrorMessage($chatId, 'خطا در درخواست ویس ترکیبی.');
+            }
+        } catch (\Exception $e) {
+            $this->sendErrorMessage($chatId, 'خطا در ارسال ویس: ' . $e->getMessage());
+        }
+    }
+
+    /**
      * Send error message
      */
     private function sendErrorMessage($chatId, $message): void

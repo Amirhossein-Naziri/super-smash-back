@@ -34,6 +34,7 @@ return [
             ],
             [
                 ['text' => '🎁 مدیریت جایزه‌ها', 'callback_data' => 'admin_reward_settings'],
+                ['text' => '🎤 مدیریت ویس‌ها', 'callback_data' => 'admin_voice_settings'],
             ],
             [
                 ['text' => 'بازگشت', 'callback_data' => 'admin_back'],
@@ -83,6 +84,14 @@ return [
             [
                 ['text' => '🎁 ساخت جایزه جدید', 'callback_data' => 'admin_create_reward'],
                 ['text' => '📋 لیست جایزه‌ها', 'callback_data' => 'admin_list_rewards'],
+            ],
+            [
+                ['text' => 'بازگشت', 'callback_data' => 'admin_back_to_main'],
+            ]
+        ],
+        'voice_settings' => [
+            [
+                ['text' => '📋 لیست مراحل و ویس‌ها', 'callback_data' => 'admin_voice_stages'],
             ],
             [
                 ['text' => 'بازگشت', 'callback_data' => 'admin_back_to_main'],

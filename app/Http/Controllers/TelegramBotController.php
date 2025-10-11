@@ -160,6 +160,12 @@ class TelegramBotController extends Controller
                 $this->adminService->clearAdminState($chatId);
                 $this->adminService->sendMessage($chatId, "🔄 حالت بازنشانی شد!");
                 break;
+            case 'admin_voice_settings':
+                $this->adminService->sendVoiceSettingsMenu($chatId);
+                break;
+            case 'admin_voice_stages':
+                $this->adminService->showVoiceStagesList($chatId);
+                break;
             default:
                 $this->handleDynamicCallback($chatId, $callbackData);
                 break;
@@ -179,6 +185,15 @@ class TelegramBotController extends Controller
                 break;
             case 'view_stage':
                 $this->adminService->showStageDetails($chatId, $parsed['stage_id']);
+                break;
+            case 'view_voice_stage':
+                $this->adminService->showVoiceStageUsers($chatId, $parsed['stage_id']);
+                break;
+            case 'view_user_recordings':
+                $this->adminService->showUserRecordings($chatId, $parsed['stage_id'], $parsed['user_id']);
+                break;
+            case 'play_combined_voice':
+                $this->adminService->sendCombinedVoiceRecording($chatId, $parsed['stage_id'], $parsed['user_id']);
                 break;
         }
     }
