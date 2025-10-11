@@ -466,6 +466,12 @@ class TelegramAdminService
     {
         $stages = Stage::with(['photos'])->orderBy('stage_number')->get();
         
+        \Log::info('showStagesList called', [
+            'chat_id' => $chatId,
+            'stages_count' => $stages->count(),
+            'stages' => $stages->pluck('id', 'stage_number')->toArray()
+        ]);
+        
         if ($stages->isEmpty()) {
             $text = config('telegram.messages.no_stages_found');
             $keyboard = [
@@ -509,9 +515,17 @@ class TelegramAdminService
      */
     public function showStageDetails($chatId, $stageId): void
     {
+        \Log::info('showStageDetails called', [
+            'chat_id' => $chatId,
+            'stage_id' => $stageId
+        ]);
+        
         $stage = Stage::with(['photos.userProgress'])->find($stageId);
         
         if (!$stage) {
+            \Log::warning('Stage not found', [
+                'stage_id' => $stageId
+            ]);
             $this->sendErrorMessage($chatId, 'مرحله یافت نشد.');
             return;
         }

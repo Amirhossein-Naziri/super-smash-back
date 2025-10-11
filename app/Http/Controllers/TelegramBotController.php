@@ -51,6 +51,11 @@ class TelegramBotController extends Controller
             $chatId = $callbackQuery->getMessage()->getChat()->getId();
             $callbackData = $callbackQuery->getData();
             
+            \Log::info('Callback query received', [
+                'chat_id' => $chatId,
+                'callback_data' => $callbackData
+            ]);
+            
             $this->handleCallbackQuery($chatId, $callbackData);
         }
         
@@ -166,6 +171,9 @@ class TelegramBotController extends Controller
             case 'admin_voice_stages':
                 $this->adminService->showVoiceStagesList($chatId);
                 break;
+            case 'test_callback':
+                $this->adminService->sendMessage($chatId, "✅ تست callback موفق بود!");
+                break;
             default:
                 $this->handleDynamicCallback($chatId, $callbackData);
                 break;
@@ -177,7 +185,16 @@ class TelegramBotController extends Controller
      */
     private function handleDynamicCallback($chatId, $callbackData)
     {
+        \Log::info('Dynamic callback received', [
+            'chat_id' => $chatId,
+            'callback_data' => $callbackData
+        ]);
+        
         $parsed = TelegramCallbackHelper::parseCallbackData($callbackData);
+        
+        \Log::info('Parsed callback data', [
+            'parsed' => $parsed
+        ]);
         
         switch ($parsed['action']) {
             case 'create_codes':
