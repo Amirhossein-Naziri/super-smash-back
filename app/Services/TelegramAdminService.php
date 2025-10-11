@@ -509,7 +509,7 @@ class TelegramAdminService
      */
     public function showStageDetails($chatId, $stageId): void
     {
-        $stage = Stage::with(['photos'])->find($stageId);
+        $stage = Stage::with(['photos.userProgress'])->find($stageId);
         
         if (!$stage) {
             $this->sendErrorMessage($chatId, 'مرحله یافت نشد.');
@@ -524,11 +524,24 @@ class TelegramAdminService
         if ($stage->photos->count() > 0) {
             $text .= "📸 عکس‌های مرحله:\n\n";
             foreach ($stage->photos as $photo) {
-                $status = $photo->is_unlocked ? "🔓 باز شده" : "🔒 قفل شده";
                 $text .= "🔹 عکس {$photo->photo_order}\n";
                 $text .= "   کد ۱: {$photo->code_1}\n";
                 $text .= "   کد ۲: {$photo->code_2}\n";
-                $text .= "   وضعیت: {$status}\n\n";
+                
+                // Get users who unlocked this photo
+                $unlockedUsers = \App\Models\UserUnlockedPhoto::getUsersForPhoto($photo->id);
+                
+                if ($unlockedUsers->count() > 0) {
+                    $text .= "   👥 کاربران بازکننده:\n";
+                    foreach ($unlockedUsers as $unlock) {
+                        $userName = $unlock->user->telegram_first_name ?? 'کاربر ' . $unlock->user_id;
+                        $unlockedAt = $unlock->unlocked_at->format('Y/m/d H:i');
+                        $text .= "      • {$userName} (ID: {$unlock->user_id}) - {$unlockedAt}\n";
+                    }
+                } else {
+                    $text .= "   🔒 هیچ کاربری باز نکرده\n";
+                }
+                $text .= "\n";
             }
         } else {
             $text .= "⚠️ هیچ عکسی برای این مرحله وجود ندارد.\n\n";

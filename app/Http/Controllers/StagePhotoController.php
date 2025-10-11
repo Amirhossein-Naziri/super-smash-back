@@ -856,6 +856,9 @@ class StagePhotoController extends Controller
             $photo->is_unlocked = true;
             $photo->save();
 
+            // Record user unlock
+            \App\Models\UserUnlockedPhoto::recordUnlock($user->id, $photo->id);
+
             // Update user progress
             $progress = UserStageProgress::getOrCreateProgress($user->id, $photo->stage_id);
             $unlockedCount = StagePhoto::where('stage_id', $photo->stage_id)
@@ -971,6 +974,9 @@ class StagePhotoController extends Controller
             // Unlock photo
             $photo->is_unlocked = true;
             $photo->save();
+
+            // Record user unlock
+            \App\Models\UserUnlockedPhoto::recordUnlock($user->id, $photo->id);
 
             // Update user progress
             $progress = UserStageProgress::getOrCreateProgress($user->id, $photo->stage_id);
