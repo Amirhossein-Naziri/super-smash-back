@@ -171,9 +171,6 @@ class TelegramBotController extends Controller
             case 'admin_voice_stages':
                 $this->adminService->showVoiceStagesList($chatId);
                 break;
-            case 'test_callback':
-                $this->adminService->sendMessage($chatId, "✅ تست callback موفق بود!");
-                break;
             default:
                 $this->handleDynamicCallback($chatId, $callbackData);
                 break;

@@ -37,9 +37,6 @@ return [
                 ['text' => '🎤 مدیریت ویس‌ها', 'callback_data' => 'admin_voice_settings'],
             ],
             [
-                ['text' => '🧪 تست Callback', 'callback_data' => 'test_callback'],
-            ],
-            [
                 ['text' => 'بازگشت', 'callback_data' => 'admin_back'],
             ]
         ],
