@@ -50,20 +50,35 @@ class Code extends Model
         // Find the code
         $codeRecord = self::where('code', $cleanCode)
                          ->where('is_active', true)
-                         ->whereNull('user_id') // Not used yet
                          ->first();
         
         if (!$codeRecord) {
             return [
                 'success' => false,
-                'message' => 'کد وارد شده اشتباه است یا قبلاً استفاده شده'
+                'message' => 'کد وارد شده اشتباه است یا غیرفعال است'
             ];
         }
         
-        // Mark code as used
+        // Check if this user has already used this code
+        if ($codeRecord->user_id === $userId) {
+            return [
+                'success' => true,
+                'message' => 'کد قبلاً توسط شما استفاده شده است',
+                'code' => $codeRecord
+            ];
+        }
+        
+        // Check if code is already used by another user
+        if ($codeRecord->user_id !== null && $codeRecord->user_id !== $userId) {
+            return [
+                'success' => false,
+                'message' => 'کد قبلاً توسط کاربر دیگری استفاده شده است'
+            ];
+        }
+        
+        // Mark code as used by this user
         $codeRecord->update([
-            'user_id' => $userId,
-            'is_active' => false
+            'user_id' => $userId
         ]);
         
         return [
@@ -82,7 +97,6 @@ class Code extends Model
         
         return self::where('code', $cleanCode)
                   ->where('is_active', true)
-                  ->whereNull('user_id')
                   ->exists();
     }
 } 
