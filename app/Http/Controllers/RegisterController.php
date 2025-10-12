@@ -26,7 +26,13 @@ class RegisterController extends Controller
             'city.max' => 'نام شهر نمی‌تواند بیش از 255 کاراکتر باشد',
         ];
         
-        $validator = Validator::make($request->all(), [
+        // Clean empty strings to null for optional fields
+        $data = $request->all();
+        $data['name'] = !empty(trim($data['name'] ?? '')) ? trim($data['name']) : null;
+        $data['phone'] = !empty(trim($data['phone'] ?? '')) ? trim($data['phone']) : null;
+        $data['city'] = !empty(trim($data['city'] ?? '')) ? trim($data['city']) : null;
+        
+        $validator = Validator::make($data, [
             'username' => 'required|string|max:255',
             'name' => 'nullable|string|max:255',
             'phone' => 'nullable|string|max:20',
@@ -45,7 +51,7 @@ class RegisterController extends Controller
             ], 422);
         }
 
-        $exists = User::where('telegram_username', $request->username)->exists();
+        $exists = User::where('telegram_username', $data['username'])->exists();
         if ($exists) {
             return response()->json([
                 'success' => false,
@@ -55,15 +61,15 @@ class RegisterController extends Controller
 
         try {
             $user = User::create([
-                'name' => $request->name ?: 'کاربر', // Default name if not provided
-                'phone' => $request->phone,
-                'city' => $request->city,
+                'name' => $data['name'] ?: 'کاربر', // Default name if not provided
+                'phone' => $data['phone'],
+                'city' => $data['city'],
                 'password' => Hash::make(uniqid()), // random password
-                'telegram_user_id' => $request->telegram_user_id,
-                'telegram_username' => $request->username,
-                'telegram_first_name' => $request->telegram_first_name,
-                'telegram_last_name' => $request->telegram_last_name,
-                'telegram_language_code' => $request->telegram_language_code,
+                'telegram_user_id' => $data['telegram_user_id'],
+                'telegram_username' => $data['username'],
+                'telegram_first_name' => $data['telegram_first_name'],
+                'telegram_last_name' => $data['telegram_last_name'],
+                'telegram_language_code' => $data['telegram_language_code'],
             ]);
 
             return response()->json([
