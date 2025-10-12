@@ -95,10 +95,17 @@ class RegisterController extends Controller
     public function userExists(Request $request)
     {
         $username = $request->query('username');
+        $telegramUserId = $request->query('telegram_user_id');
         $exists = false;
-        if ($username) {
+        
+        if ($telegramUserId) {
+            // Check by telegram_user_id (preferred method)
+            $exists = User::where('telegram_user_id', $telegramUserId)->exists();
+        } elseif ($username) {
+            // Check by username (fallback)
             $exists = User::where('telegram_username', $username)->exists();
         }
+        
         return response()->json(['exists' => $exists]);
     }
 } 
