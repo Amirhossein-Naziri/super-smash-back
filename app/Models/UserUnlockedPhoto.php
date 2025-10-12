@@ -12,11 +12,13 @@ class UserUnlockedPhoto extends Model
     protected $fillable = [
         'user_id',
         'stage_photo_id',
-        'unlocked_at'
+        'unlocked_at',
+        'is_partial_unlock'
     ];
 
     protected $casts = [
         'unlocked_at' => 'datetime',
+        'is_partial_unlock' => 'boolean',
     ];
 
     /**
@@ -40,20 +42,21 @@ class UserUnlockedPhoto extends Model
      */
     public static function recordUnlock($userId, $stagePhotoId)
     {
-        return self::firstOrCreate(
+        return self::updateOrCreate(
             ['user_id' => $userId, 'stage_photo_id' => $stagePhotoId],
-            ['unlocked_at' => now()]
+            ['unlocked_at' => now(), 'is_partial_unlock' => false]
         );
     }
 
     /**
-     * Record that a user partially unlocked a photo (for legacy support)
+     * Record that a user partially unlocked a photo
      */
     public static function recordPartialUnlock($userId, $stagePhotoId)
     {
-        // For now, we treat partial unlock as full unlock
-        // This maintains compatibility with existing code
-        return self::recordUnlock($userId, $stagePhotoId);
+        return self::updateOrCreate(
+            ['user_id' => $userId, 'stage_photo_id' => $stagePhotoId],
+            ['unlocked_at' => now(), 'is_partial_unlock' => true]
+        );
     }
 
     /**

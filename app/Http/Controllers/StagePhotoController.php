@@ -649,9 +649,10 @@ class StagePhotoController extends Controller
                                                                  ->where('stage_photo_id', $photo->id)
                                                                  ->first();
                 
-                $isUnlockedByUser = $userUnlockedPhoto ? true : false;
+                $isUnlockedByUser = $userUnlockedPhoto && !$userUnlockedPhoto->is_partial_unlock;
+                $isPartiallyUnlockedByUser = $userUnlockedPhoto && $userUnlockedPhoto->is_partial_unlock;
                 
-                // Use original image if unlocked by this user, blurred image if locked
+                // Use original image if fully unlocked, blurred image if locked or partially unlocked
                 $imageUrl = $isUnlockedByUser
                     ? Storage::disk('public')->url($photo->image_path)
                     : Storage::disk('public')->url($photo->blurred_image_path);
@@ -661,7 +662,7 @@ class StagePhotoController extends Controller
                     'photo_order' => $photo->photo_order,
                     'image_url' => $imageUrl,
                     'is_unlocked' => $isUnlockedByUser,
-                    'partially_unlocked' => false, // We don't use partial unlock anymore
+                    'partially_unlocked' => $isPartiallyUnlockedByUser,
                     'has_voice_recording' => $hasRecording,
                     'needs_codes' => !$isUnlockedByUser
                 ];
@@ -782,9 +783,10 @@ class StagePhotoController extends Controller
             $progress->updateUnlockedPhotos($userUnlockedCount);
 
             return response()->json([
-                'message' => 'کد اول صحیح است! حالا کد دوم را وارد کنید.',
+                'message' => 'کد اول صحیح است! عکس کمی باز شد.',
                 'partially_unlocked_image_url' => Storage::disk('public')->url($photo->image_path),
-                'needs_second_code' => true
+                'needs_second_code' => true,
+                'progress' => $progress
             ]);
 
         } catch (\Exception $e) {
