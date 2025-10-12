@@ -652,8 +652,8 @@ class StagePhotoController extends Controller
                 $isUnlockedByUser = $userUnlockedPhoto && !$userUnlockedPhoto->is_partial_unlock;
                 $isPartiallyUnlockedByUser = $userUnlockedPhoto && $userUnlockedPhoto->is_partial_unlock;
                 
-                // Use original image if fully unlocked, blurred image if locked or partially unlocked
-                $imageUrl = $isUnlockedByUser
+                // Use original image if fully unlocked, blurred image if locked, original image if partially unlocked
+                $imageUrl = $isUnlockedByUser || $isPartiallyUnlockedByUser
                     ? Storage::disk('public')->url($photo->image_path)
                     : Storage::disk('public')->url($photo->blurred_image_path);
                 
