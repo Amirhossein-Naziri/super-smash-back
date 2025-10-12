@@ -28,6 +28,12 @@ class RegisterController extends Controller
         
         // Clean empty strings to null for optional fields
         $data = $request->all();
+        
+        // Ensure username is not null or empty
+        if (empty($data['username'])) {
+            $data['username'] = $data['telegram_username'] ?? $data['telegram_user_id'] ?? 'user_' . time();
+        }
+        
         $data['name'] = !empty(trim($data['name'] ?? '')) ? trim($data['name']) : null;
         $data['phone'] = !empty(trim($data['phone'] ?? '')) ? trim($data['phone']) : null;
         $data['city'] = !empty(trim($data['city'] ?? '')) ? trim($data['city']) : null;
