@@ -76,10 +76,16 @@ class TelegramBotController extends Controller
             'is_admin' => in_array($chatId, $adminIds)
         ]);
         
-        // Temporary: Always show admin menu for debugging
+        // Check if admin IDs are configured
         if (empty($adminIds)) {
-            \Log::warning("No admin IDs configured. Showing admin menu to chat ID: {$chatId}");
-            $this->adminService->sendAdminMenu($chatId);
+            \Log::warning("No admin IDs configured. Showing regular menu to chat ID: {$chatId}");
+            // Show regular menu instead of admin menu
+            $keyboard = [
+                [
+                    ['text' => '🎮 شروع بازی', 'web_app' => ['url' => config('telegram.game_url')]]
+                ]
+            ];
+            $this->sendMessage($chatId, config('telegram.messages.welcome'), $keyboard);
             return;
         }
         

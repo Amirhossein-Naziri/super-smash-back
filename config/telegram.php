@@ -16,7 +16,7 @@ return [
     
     'game_url' => env('TELEGRAM_GAME_URL', 'https://daom.ir/game'),
     
-    'admin_ids' => env('TELEGRAM_ADMIN_IDS', []),
+    'admin_ids' => env('TELEGRAM_ADMIN_IDS') ? explode(',', env('TELEGRAM_ADMIN_IDS')) : [],
     
     'messages' => [
         'welcome' => "🎮 سلام! به بازی Super Smash خوش آمدید!\n\nبرای شروع بازی، روی دکمه زیر کلیک کنید:\n👇👇👇",

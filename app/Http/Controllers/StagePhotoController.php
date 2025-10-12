@@ -852,19 +852,17 @@ class StagePhotoController extends Controller
                 ], 400);
             }
 
-            // Fully unlock photo
-            $photo->is_unlocked = true;
-            $photo->save();
-
-            // Record user unlock
+            // Record user unlock (don't unlock globally)
             \App\Models\UserUnlockedPhoto::recordUnlock($user->id, $photo->id);
 
-            // Update user progress
+            // Update user progress based on user's unlocked photos
             $progress = UserStageProgress::getOrCreateProgress($user->id, $photo->stage_id);
-            $unlockedCount = StagePhoto::where('stage_id', $photo->stage_id)
-                                      ->where('is_unlocked', true)
-                                      ->count();
-            $progress->updateUnlockedPhotos($unlockedCount);
+            $userUnlockedCount = \App\Models\UserUnlockedPhoto::where('user_id', $user->id)
+                                                              ->whereHas('stagePhoto', function($query) use ($photo) {
+                                                                  $query->where('stage_id', $photo->stage_id);
+                                                              })
+                                                              ->count();
+            $progress->updateUnlockedPhotos($userUnlockedCount);
 
             $totalPhotos = StagePhoto::where('stage_id', $photo->stage_id)->count();
             
@@ -971,19 +969,17 @@ class StagePhotoController extends Controller
                 ], 400);
             }
 
-            // Unlock photo
-            $photo->is_unlocked = true;
-            $photo->save();
-
-            // Record user unlock
+            // Record user unlock (don't unlock globally)
             \App\Models\UserUnlockedPhoto::recordUnlock($user->id, $photo->id);
 
-            // Update user progress
+            // Update user progress based on user's unlocked photos
             $progress = UserStageProgress::getOrCreateProgress($user->id, $photo->stage_id);
-            $unlockedCount = StagePhoto::where('stage_id', $photo->stage_id)
-                                      ->where('is_unlocked', true)
-                                      ->count();
-            $progress->updateUnlockedPhotos($unlockedCount);
+            $userUnlockedCount = \App\Models\UserUnlockedPhoto::where('user_id', $user->id)
+                                                              ->whereHas('stagePhoto', function($query) use ($photo) {
+                                                                  $query->where('stage_id', $photo->stage_id);
+                                                              })
+                                                              ->count();
+            $progress->updateUnlockedPhotos($userUnlockedCount);
 
             $totalPhotos = StagePhoto::where('stage_id', $photo->stage_id)->count();
             
