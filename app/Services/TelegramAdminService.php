@@ -464,13 +464,22 @@ class TelegramAdminService
      */
     public function showStagesList($chatId): void
     {
-        $stages = Stage::with(['photos'])->orderBy('stage_number')->get();
-        
-        \Log::info('showStagesList called', [
-            'chat_id' => $chatId,
-            'stages_count' => $stages->count(),
-            'stages' => $stages->pluck('id', 'stage_number')->toArray()
-        ]);
+        try {
+            $stages = Stage::with(['photos'])->orderBy('stage_number')->get();
+            
+            \Log::info('showStagesList called', [
+                'chat_id' => $chatId,
+                'stages_count' => $stages->count(),
+                'stages' => $stages->pluck('id', 'stage_number')->toArray()
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Database error in showStagesList', [
+                'chat_id' => $chatId,
+                'error' => $e->getMessage()
+            ]);
+            $this->sendErrorMessage($chatId, 'خطا در اتصال به دیتابیس.');
+            return;
+        }
         
         if ($stages->isEmpty()) {
             $text = config('telegram.messages.no_stages_found');
@@ -520,13 +529,23 @@ class TelegramAdminService
             'stage_id' => $stageId
         ]);
         
-        $stage = Stage::with(['photos.userProgress'])->find($stageId);
-        
-        if (!$stage) {
-            \Log::warning('Stage not found', [
-                'stage_id' => $stageId
+        try {
+            $stage = Stage::with(['photos'])->find($stageId);
+            
+            if (!$stage) {
+                \Log::warning('Stage not found', [
+                    'stage_id' => $stageId
+                ]);
+                $this->sendErrorMessage($chatId, 'مرحله یافت نشد.');
+                return;
+            }
+        } catch (\Exception $e) {
+            \Log::error('Database error in showStageDetails', [
+                'chat_id' => $chatId,
+                'stage_id' => $stageId,
+                'error' => $e->getMessage()
             ]);
-            $this->sendErrorMessage($chatId, 'مرحله یافت نشد.');
+            $this->sendErrorMessage($chatId, 'خطا در اتصال به دیتابیس.');
             return;
         }
 
@@ -541,17 +560,25 @@ class TelegramAdminService
                 $text .= "🔹 عکس {$photo->photo_order}\n";
                 
                 // Get users who unlocked this photo
-                $unlockedUsers = \App\Models\UserUnlockedPhoto::getUsersForPhoto($photo->id);
-                
-                if ($unlockedUsers->count() > 0) {
-                    $text .= "   👥 کاربران بازکننده:\n";
-                    foreach ($unlockedUsers as $unlock) {
-                        $userName = $unlock->user->telegram_first_name ?? 'کاربر ' . $unlock->user_id;
-                        $unlockedAt = $unlock->unlocked_at->format('Y/m/d H:i');
-                        $text .= "      • {$userName} (ID: {$unlock->user_id}) - {$unlockedAt}\n";
+                try {
+                    $unlockedUsers = \App\Models\UserUnlockedPhoto::getUsersForPhoto($photo->id);
+                    
+                    if ($unlockedUsers->count() > 0) {
+                        $text .= "   👥 کاربران بازکننده:\n";
+                        foreach ($unlockedUsers as $unlock) {
+                            $userName = $unlock->user->telegram_first_name ?? 'کاربر ' . $unlock->user_id;
+                            $unlockedAt = $unlock->unlocked_at->format('Y/m/d H:i');
+                            $text .= "      • {$userName} (ID: {$unlock->user_id}) - {$unlockedAt}\n";
+                        }
+                    } else {
+                        $text .= "   🔒 هیچ کاربری باز نکرده\n";
                     }
-                } else {
-                    $text .= "   🔒 هیچ کاربری باز نکرده\n";
+                } catch (\Exception $e) {
+                    \Log::error('Error getting unlocked users', [
+                        'photo_id' => $photo->id,
+                        'error' => $e->getMessage()
+                    ]);
+                    $text .= "   ⚠️ خطا در دریافت اطلاعات\n";
                 }
                 $text .= "\n";
             }
@@ -1031,7 +1058,16 @@ class TelegramAdminService
      */
     public function showVoiceStagesList($chatId): void
     {
-        $stages = Stage::withCount(['photos', 'voiceRecordings'])->orderBy('stage_number')->get();
+        try {
+            $stages = Stage::withCount(['photos', 'voiceRecordings'])->orderBy('stage_number')->get();
+        } catch (\Exception $e) {
+            \Log::error('Database error in showVoiceStagesList', [
+                'chat_id' => $chatId,
+                'error' => $e->getMessage()
+            ]);
+            $this->sendErrorMessage($chatId, 'خطا در اتصال به دیتابیس.');
+            return;
+        }
         
         if ($stages->isEmpty()) {
             $text = "📋 لیست مراحل ویس‌ها\n\nهیچ مرحله‌ای یافت نشد.";
@@ -1070,22 +1106,42 @@ class TelegramAdminService
      */
     public function showVoiceStageUsers($chatId, $stageId): void
     {
-        $stage = Stage::find($stageId);
-        if (!$stage) {
-            $this->sendErrorMessage($chatId, 'مرحله یافت نشد.');
+        try {
+            $stage = Stage::find($stageId);
+            if (!$stage) {
+                $this->sendErrorMessage($chatId, 'مرحله یافت نشد.');
+                return;
+            }
+        } catch (\Exception $e) {
+            \Log::error('Database error in showVoiceStageUsers', [
+                'chat_id' => $chatId,
+                'stage_id' => $stageId,
+                'error' => $e->getMessage()
+            ]);
+            $this->sendErrorMessage($chatId, 'خطا در اتصال به دیتابیس.');
             return;
         }
 
         // Get users who have voice recordings for this stage
-        $users = \App\Models\User::whereHas('voiceRecordings', function($query) use ($stageId) {
-            $query->whereHas('stagePhoto', function($q) use ($stageId) {
-                $q->where('stage_id', $stageId);
-            });
-        })->with(['voiceRecordings' => function($query) use ($stageId) {
-            $query->whereHas('stagePhoto', function($q) use ($stageId) {
-                $q->where('stage_id', $stageId);
-            });
-        }])->get();
+        try {
+            $users = \App\Models\User::whereHas('voiceRecordings', function($query) use ($stageId) {
+                $query->whereHas('stagePhoto', function($q) use ($stageId) {
+                    $q->where('stage_id', $stageId);
+                });
+            })->with(['voiceRecordings' => function($query) use ($stageId) {
+                $query->whereHas('stagePhoto', function($q) use ($stageId) {
+                    $q->where('stage_id', $stageId);
+                });
+            }])->get();
+        } catch (\Exception $e) {
+            \Log::error('Database error getting users with voice recordings', [
+                'chat_id' => $chatId,
+                'stage_id' => $stageId,
+                'error' => $e->getMessage()
+            ]);
+            $this->sendErrorMessage($chatId, 'خطا در دریافت لیست کاربران.');
+            return;
+        }
 
         if ($users->isEmpty()) {
             $text = "👥 کاربران مرحله {$stage->stage_number}\n\nهیچ کاربری ویس ضبط نکرده است.";
@@ -1121,21 +1177,43 @@ class TelegramAdminService
      */
     public function showUserRecordings($chatId, $stageId, $userId): void
     {
-        $user = \App\Models\User::find($userId);
-        $stage = Stage::find($stageId);
-        
-        if (!$user || !$stage) {
-            $this->sendErrorMessage($chatId, 'کاربر یا مرحله یافت نشد.');
+        try {
+            $user = \App\Models\User::find($userId);
+            $stage = Stage::find($stageId);
+            
+            if (!$user || !$stage) {
+                $this->sendErrorMessage($chatId, 'کاربر یا مرحله یافت نشد.');
+                return;
+            }
+        } catch (\Exception $e) {
+            \Log::error('Database error in showUserRecordings', [
+                'chat_id' => $chatId,
+                'stage_id' => $stageId,
+                'user_id' => $userId,
+                'error' => $e->getMessage()
+            ]);
+            $this->sendErrorMessage($chatId, 'خطا در اتصال به دیتابیس.');
             return;
         }
 
-        $recordings = \App\Models\UserVoiceRecording::where('user_id', $userId)
-            ->whereHas('stagePhoto', function($query) use ($stageId) {
-                $query->where('stage_id', $stageId);
-            })
-            ->with('stagePhoto')
-            ->orderBy('created_at')
-            ->get();
+        try {
+            $recordings = \App\Models\UserVoiceRecording::where('user_id', $userId)
+                ->whereHas('stagePhoto', function($query) use ($stageId) {
+                    $query->where('stage_id', $stageId);
+                })
+                ->with('stagePhoto')
+                ->orderBy('created_at')
+                ->get();
+        } catch (\Exception $e) {
+            \Log::error('Database error getting user recordings', [
+                'chat_id' => $chatId,
+                'stage_id' => $stageId,
+                'user_id' => $userId,
+                'error' => $e->getMessage()
+            ]);
+            $this->sendErrorMessage($chatId, 'خطا در دریافت ویس‌های کاربر.');
+            return;
+        }
 
         if ($recordings->isEmpty()) {
             $text = "🎤 ویس‌های {$user->telegram_first_name} در مرحله {$stage->stage_number}\n\nهیچ ویسی یافت نشد.";

@@ -40,6 +40,14 @@ class StagePhoto extends Model
     }
 
     /**
+     * Get user progress for this photo
+     */
+    public function userProgress()
+    {
+        return $this->hasMany(UserUnlockedPhoto::class, 'stage_photo_id');
+    }
+
+    /**
      * Get photos for a stage in order
      */
     public static function getPhotosForStage($stageId)
