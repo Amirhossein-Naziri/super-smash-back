@@ -76,19 +76,19 @@ Route::prefix('rewards')->group(function () {
 
 // Stage Photos Routes (new system) - بدون authentication middleware
 Route::prefix('stage-photos')->group(function () {
-    Route::get('/current-stage', [StagePhotoController::class, 'getCurrentStagePhotos'])->middleware('cache.api:300');
+    Route::get('/current-stage', [StagePhotoController::class, 'getCurrentStagePhotos']);
     Route::post('/unlock', [StagePhotoController::class, 'unlockPhoto']);
     Route::post('/partially-unlock', [StagePhotoController::class, 'partiallyUnlockPhoto']);
     Route::post('/fully-unlock', [StagePhotoController::class, 'fullyUnlockPhoto']);
     Route::post('/upload-voice', [StagePhotoController::class, 'uploadVoiceRecording']);
-    Route::get('/completion-status', [StagePhotoController::class, 'getStageCompletionStatus'])->middleware('cache.api:300');
+    Route::get('/completion-status', [StagePhotoController::class, 'getStageCompletionStatus']);
     Route::post('/create-test-stage', [StagePhotoController::class, 'createTestStage']);
 });
 
 // Admin routes
 Route::prefix('admin')->group(function () {
-    Route::get('/stages', [App\Http\Controllers\AdminController::class, 'getStages'])->middleware('cache.api:600');
-    Route::get('/stages/{stageId}/users', [App\Http\Controllers\AdminController::class, 'getStageUsers'])->middleware('cache.api:300');
-    Route::get('/stages/{stageId}/users/{userId}/recordings', [App\Http\Controllers\AdminController::class, 'getUserStageRecordings'])->middleware('cache.api:300');
-    Route::get('/stages/{stageId}/users/{userId}/combined', [App\Http\Controllers\AdminController::class, 'getCombinedVoiceRecording'])->middleware('cache.api:600');
+    Route::get('/stages', [App\Http\Controllers\AdminController::class, 'getStages']);
+    Route::get('/stages/{stageId}/users', [App\Http\Controllers\AdminController::class, 'getStageUsers']);
+    Route::get('/stages/{stageId}/users/{userId}/recordings', [App\Http\Controllers\AdminController::class, 'getUserStageRecordings']);
+    Route::get('/stages/{stageId}/users/{userId}/combined', [App\Http\Controllers\AdminController::class, 'getCombinedVoiceRecording']);
 });

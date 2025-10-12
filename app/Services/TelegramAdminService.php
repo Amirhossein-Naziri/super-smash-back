@@ -464,10 +464,13 @@ class TelegramAdminService
      */
     public function showStagesList($chatId): void
     {
-        // استفاده از cache برای بهبود عملکرد
-        $stages = \Cache::remember('stages_list_' . $chatId, 300, function() {
-            return Stage::with(['photos'])->orderBy('stage_number')->get();
-        });
+        $stages = Stage::with(['photos'])->orderBy('stage_number')->get();
+        
+        \Log::info('showStagesList called', [
+            'chat_id' => $chatId,
+            'stages_count' => $stages->count(),
+            'stages' => $stages->pluck('id', 'stage_number')->toArray()
+        ]);
         
         if ($stages->isEmpty()) {
             $text = config('telegram.messages.no_stages_found');
@@ -512,12 +515,17 @@ class TelegramAdminService
      */
     public function showStageDetails($chatId, $stageId): void
     {
-        // استفاده از cache برای بهبود عملکرد
-        $stage = \Cache::remember("stage_details_{$stageId}", 300, function() use ($stageId) {
-            return Stage::with(['photos'])->find($stageId);
-        });
+        \Log::info('showStageDetails called', [
+            'chat_id' => $chatId,
+            'stage_id' => $stageId
+        ]);
+        
+        $stage = Stage::with(['photos.userProgress'])->find($stageId);
         
         if (!$stage) {
+            \Log::warning('Stage not found', [
+                'stage_id' => $stageId
+            ]);
             $this->sendErrorMessage($chatId, 'مرحله یافت نشد.');
             return;
         }
@@ -1187,32 +1195,6 @@ class TelegramAdminService
             }
         } catch (\Exception $e) {
             $this->sendErrorMessage($chatId, 'خطا در ارسال ویس: ' . $e->getMessage());
-        }
-    }
-
-    /**
-     * Send message with error handling
-     */
-    public function sendMessage($chatId, $text, $keyboard = null): void
-    {
-        try {
-            $params = [
-                'chat_id' => $chatId,
-                'text' => $text,
-                'parse_mode' => 'HTML'
-            ];
-            
-            if ($keyboard) {
-                $params['reply_markup'] = json_encode(['inline_keyboard' => $keyboard]);
-            }
-            
-            $this->telegram->sendMessage($params);
-        } catch (\Exception $e) {
-            \Log::error('Telegram send message error', [
-                'chat_id' => $chatId,
-                'error' => $e->getMessage(),
-                'text_length' => strlen($text)
-            ]);
         }
     }
 

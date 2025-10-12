@@ -26,31 +26,6 @@ class TelegramBotController extends Controller
      */
     public function webhook(Request $request)
     {
-        try {
-            // پاسخ سریع به تلگرام
-            $response = response()->json(['status' => 'ok']);
-            
-            // پردازش در background
-            dispatch(function() use ($request) {
-                $this->processWebhook($request);
-            });
-            
-            return $response;
-        } catch (\Exception $e) {
-            \Log::error('Webhook error', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-            
-            return response()->json(['status' => 'error'], 500);
-        }
-    }
-
-    /**
-     * Process webhook in background
-     */
-    private function processWebhook(Request $request)
-    {
         $update = $this->telegram->getWebhookUpdates();
         
         if ($update->has('message') && $update->getMessage()->has('text')) {
@@ -76,8 +51,15 @@ class TelegramBotController extends Controller
             $chatId = $callbackQuery->getMessage()->getChat()->getId();
             $callbackData = $callbackQuery->getData();
             
+            \Log::info('Callback query received', [
+                'chat_id' => $chatId,
+                'callback_data' => $callbackData
+            ]);
+            
             $this->handleCallbackQuery($chatId, $callbackData);
         }
+        
+        return response()->json(['status' => 'ok']);
     }
 
     /**

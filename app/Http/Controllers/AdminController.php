@@ -5,8 +5,6 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\DB;
 use App\Models\Stage;
 use App\Models\User;
 use App\Models\UserVoiceRecording;
@@ -21,31 +19,24 @@ class AdminController extends Controller
     public function getStages()
     {
         try {
-            // استفاده از cache برای بهبود عملکرد
-            $stagesData = Cache::remember('admin_stages_data', 300, function() {
-                $stages = Stage::with(['photos'])
-                              ->orderBy('stage_number')
-                              ->get();
+            $stages = Stage::with(['photos', 'userProgress'])
+                          ->orderBy('stage_number')
+                          ->get();
 
-                return $stages->map(function($stage) {
-                    $totalPhotos = $stage->photos->count();
-                    
-                    // استفاده از query بهینه‌تر
-                    $usersWithRecordings = DB::table('user_voice_recordings')
-                        ->join('stage_photos', 'user_voice_recordings.stage_photo_id', '=', 'stage_photos.id')
-                        ->where('stage_photos.stage_id', $stage->id)
-                        ->distinct('user_voice_recordings.user_id')
-                        ->count();
+            $stagesData = $stages->map(function($stage) {
+                $totalPhotos = $stage->photos->count();
+                $usersWithRecordings = UserVoiceRecording::whereHas('stagePhoto', function($query) use ($stage) {
+                    $query->where('stage_id', $stage->id);
+                })->distinct('user_id')->count();
 
-                    return [
-                        'id' => $stage->id,
-                        'stage_number' => $stage->stage_number,
-                        'points' => $stage->points,
-                        'total_photos' => $totalPhotos,
-                        'users_with_recordings' => $usersWithRecordings,
-                        'is_completed' => $stage->is_completed
-                    ];
-                });
+                return [
+                    'id' => $stage->id,
+                    'stage_number' => $stage->stage_number,
+                    'points' => $stage->points,
+                    'total_photos' => $totalPhotos,
+                    'users_with_recordings' => $usersWithRecordings,
+                    'is_completed' => $stage->is_completed
+                ];
             });
 
             return response()->json([

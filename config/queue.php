@@ -1,8 +1,7 @@
 <?php
 
-use Illuminate\Support\Str;
-
 return [
+
     /*
     |--------------------------------------------------------------------------
     | Default Queue Connection Name
@@ -30,6 +29,7 @@ return [
     */
 
     'connections' => [
+
         'sync' => [
             'driver' => 'sync',
         ],
@@ -70,6 +70,7 @@ return [
             'block_for' => null,
             'after_commit' => false,
         ],
+
     ],
 
     /*
@@ -78,8 +79,8 @@ return [
     |--------------------------------------------------------------------------
     |
     | These options configure the behavior of failed queue job logging so you
-    | can control which database and table are used to store jobs that have
-    | failed. You may change them to any database / table you wish.
+    | can control which database and table are used to store the jobs that
+    | have failed. You may change them to any database / table you wish.
     |
     */
 
@@ -88,4 +89,5 @@ return [
         'database' => env('DB_CONNECTION', 'mysql'),
         'table' => 'failed_jobs',
     ],
+
 ];
