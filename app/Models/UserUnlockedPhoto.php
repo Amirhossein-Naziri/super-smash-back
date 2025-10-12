@@ -47,6 +47,16 @@ class UserUnlockedPhoto extends Model
     }
 
     /**
+     * Record that a user partially unlocked a photo (for legacy support)
+     */
+    public static function recordPartialUnlock($userId, $stagePhotoId)
+    {
+        // For now, we treat partial unlock as full unlock
+        // This maintains compatibility with existing code
+        return self::recordUnlock($userId, $stagePhotoId);
+    }
+
+    /**
      * Get users who unlocked a specific photo
      */
     public static function getUsersForPhoto($stagePhotoId)

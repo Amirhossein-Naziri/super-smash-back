@@ -641,11 +641,18 @@ class StagePhotoController extends Controller
             // Get user's voice recordings for this stage
             $voiceRecordings = UserVoiceRecording::getRecordingsForUserStage($user->id, $stage->id);
             
-            $photosData = $photos->map(function($photo) use ($progress, $voiceRecordings) {
+            $photosData = $photos->map(function($photo) use ($progress, $voiceRecordings, $user) {
                 $hasRecording = $voiceRecordings->where('stage_photo_id', $photo->id)->isNotEmpty();
                 
-                // Use original image if unlocked or partially unlocked, blurred image if locked
-                $imageUrl = ($photo->is_unlocked || $photo->partially_unlocked)
+                // Check if this specific user has unlocked this photo
+                $userUnlockedPhoto = \App\Models\UserUnlockedPhoto::where('user_id', $user->id)
+                                                                 ->where('stage_photo_id', $photo->id)
+                                                                 ->first();
+                
+                $isUnlockedByUser = $userUnlockedPhoto ? true : false;
+                
+                // Use original image if unlocked by this user, blurred image if locked
+                $imageUrl = $isUnlockedByUser
                     ? Storage::disk('public')->url($photo->image_path)
                     : Storage::disk('public')->url($photo->blurred_image_path);
                 
@@ -653,10 +660,10 @@ class StagePhotoController extends Controller
                     'id' => $photo->id,
                     'photo_order' => $photo->photo_order,
                     'image_url' => $imageUrl,
-                    'is_unlocked' => $photo->is_unlocked,
-                    'partially_unlocked' => $photo->partially_unlocked,
+                    'is_unlocked' => $isUnlockedByUser,
+                    'partially_unlocked' => false, // We don't use partial unlock anymore
                     'has_voice_recording' => $hasRecording,
-                    'needs_codes' => !$photo->is_unlocked
+                    'needs_codes' => !$isUnlockedByUser
                 ];
             });
 
@@ -762,9 +769,17 @@ class StagePhotoController extends Controller
                 ], 400);
             }
 
-            // Partially unlock photo
-            $photo->partially_unlocked = true;
-            $photo->save();
+            // Record user partial unlock (don't unlock globally)
+            \App\Models\UserUnlockedPhoto::recordPartialUnlock($user->id, $photo->id);
+
+            // Update user progress based on user's unlocked photos
+            $progress = UserStageProgress::getOrCreateProgress($user->id, $photo->stage_id);
+            $userUnlockedCount = \App\Models\UserUnlockedPhoto::where('user_id', $user->id)
+                                                             ->whereHas('stagePhoto', function($query) use ($photo) {
+                                                                 $query->where('stage_id', $photo->stage_id);
+                                                             })
+                                                             ->count();
+            $progress->updateUnlockedPhotos($userUnlockedCount);
 
             return response()->json([
                 'message' => 'کد اول صحیح است! حالا کد دوم را وارد کنید.',
