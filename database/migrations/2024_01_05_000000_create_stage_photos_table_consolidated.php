@@ -18,7 +18,7 @@ return new class extends Migration
             $table->string('blurred_image_path'); // مسیر عکس تار شده
             $table->integer('photo_order'); // ترتیب عکس در مرحله (1-6)
             $table->boolean('is_unlocked')->default(false); // آیا عکس باز شده
-            $table->boolean('partially_unlocked')->default(false)->after('is_unlocked');
+            $table->boolean('partially_unlocked')->default(false);
             $table->timestamps();
         });
     }

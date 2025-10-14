@@ -26,7 +26,7 @@ class CreateUsersTableConsolidated extends Migration
             $table->string('telegram_last_name')->nullable();
             $table->string('telegram_language_code')->nullable();
             $table->integer('score')->nullable();
-            $table->integer('level_story')->default(1)->after('score');
+            $table->integer('level_story')->default(1);
             
             // Referral fields
             $table->string('referral_code', 8)->unique()->nullable();

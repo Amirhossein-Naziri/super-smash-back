@@ -18,7 +18,7 @@ class CreateUserUnlockedPhotosTableConsolidated extends Migration
             $table->foreignId('user_id')->constrained()->onDelete('cascade');
             $table->foreignId('stage_photo_id')->constrained()->onDelete('cascade');
             $table->timestamp('unlocked_at');
-            $table->boolean('is_partial_unlock')->default(false)->after('unlocked_at');
+            $table->boolean('is_partial_unlock')->default(false);
             $table->timestamps();
             
             // اطمینان از اینکه هر کاربر فقط یک بار هر عکس را باز کرده
