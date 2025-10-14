@@ -3,12 +3,19 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Services\ReferralService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 
 class RegisterController extends Controller
 {
+    protected $referralService;
+
+    public function __construct(ReferralService $referralService)
+    {
+        $this->referralService = $referralService;
+    }
     public function register(Request $request)
     {
         \Log::info('Register called', $request->all());
@@ -48,6 +55,7 @@ class RegisterController extends Controller
             'telegram_first_name' => 'nullable|string|max:255',
             'telegram_last_name' => 'nullable|string|max:255',
             'telegram_language_code' => 'nullable|string|max:10',
+            'referral_code' => 'nullable|string|max:8', // Add referral code validation
         ], $messages);
 
         if ($validator->fails()) {
@@ -76,13 +84,31 @@ class RegisterController extends Controller
                 'telegram_first_name' => $data['telegram_first_name'],
                 'telegram_last_name' => $data['telegram_last_name'],
                 'telegram_language_code' => $data['telegram_language_code'],
+                'score' => 0, // Initialize score
             ]);
 
-            return response()->json([
+            // Generate referral code for the new user
+            $user->generateReferralCode();
+
+            // Process referral if provided
+            $referralResult = null;
+            if (!empty($data['referral_code'])) {
+                $referralResult = $this->referralService->processReferral($data['referral_code'], $user->id);
+            }
+
+            $response = [
                 'success' => true, 
                 'user' => $user,
+                'referral_code' => $user->referral_code,
                 'message' => 'ثبت‌نام با موفقیت انجام شد'
-            ], 201);
+            ];
+
+            // Add referral result to response if available
+            if ($referralResult) {
+                $response['referral_result'] = $referralResult;
+            }
+
+            return response()->json($response, 201);
         } catch (\Exception $e) {
             \Log::error('Registration error: ' . $e->getMessage());
             return response()->json([
@@ -108,4 +134,5 @@ class RegisterController extends Controller
         
         return response()->json(['exists' => $exists]);
     }
+
 } 

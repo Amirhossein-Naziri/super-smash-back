@@ -9,6 +9,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\GameController;
 use App\Http\Controllers\RewardController;
 use App\Http\Controllers\StagePhotoController;
+use App\Http\Controllers\ReferralController;
 use Illuminate\Support\Facades\Response;
 
 /*
@@ -55,6 +56,16 @@ Route::prefix('telegram')->group(function () {
 Route::post('/register', [RegisterController::class, 'register']);
 // Check if user exists by Telegram username
 Route::get('/user/exists', [RegisterController::class, 'userExists']);
+
+// Referral routes
+Route::post('/referral/validate', [ReferralController::class, 'validateReferralCode']);
+Route::middleware('auth:sanctum')->group(function () {
+    Route::get('/referral/stats', [ReferralController::class, 'getReferralStats']);
+    Route::post('/referral/generate-code', [ReferralController::class, 'generateReferralCode']);
+    Route::get('/referral/code', [ReferralController::class, 'getReferralCode']);
+    Route::get('/referral/referred-users', [ReferralController::class, 'getReferredUsers']);
+    Route::get('/referral/leaderboard', [ReferralController::class, 'getLeaderboard']);
+});
 Route::post('/log-error', [\App\Http\Controllers\TelegramBotController::class, 'logError']);
 
 // Game Routes
