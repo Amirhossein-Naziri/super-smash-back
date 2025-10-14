@@ -4,7 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-class CreateUsersTable extends Migration
+class CreateUsersTableConsolidated extends Migration
 {
     /**
      * Run the migrations.
@@ -26,8 +26,19 @@ class CreateUsersTable extends Migration
             $table->string('telegram_last_name')->nullable();
             $table->string('telegram_language_code')->nullable();
             $table->integer('score')->nullable();
+            $table->integer('level_story')->default(1)->after('score');
+            
+            // Referral fields
+            $table->string('referral_code', 8)->unique()->nullable();
+            $table->unsignedBigInteger('referred_by')->nullable();
+            $table->integer('referral_count')->default(0);
+            $table->integer('referral_rewards')->default(0);
+            
             $table->rememberToken();
             $table->timestamps();
+            
+            // Foreign key constraint
+            $table->foreign('referred_by')->references('id')->on('users')->onDelete('set null');
         });
     }
 

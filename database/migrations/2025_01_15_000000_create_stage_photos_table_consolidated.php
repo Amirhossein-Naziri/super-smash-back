@@ -17,9 +17,8 @@ return new class extends Migration
             $table->string('image_path'); // مسیر عکس اصلی
             $table->string('blurred_image_path'); // مسیر عکس تار شده
             $table->integer('photo_order'); // ترتیب عکس در مرحله (1-6)
-            $table->string('code_1', 6); // کد اول برای باز کردن عکس
-            $table->string('code_2', 6); // کد دوم برای باز کردن عکس
             $table->boolean('is_unlocked')->default(false); // آیا عکس باز شده
+            $table->boolean('partially_unlocked')->default(false)->after('is_unlocked');
             $table->timestamps();
         });
     }

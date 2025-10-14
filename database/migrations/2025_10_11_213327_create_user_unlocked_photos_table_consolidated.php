@@ -4,7 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-class CreateUserUnlockedPhotosTable extends Migration
+class CreateUserUnlockedPhotosTableConsolidated extends Migration
 {
     /**
      * Run the migrations.
@@ -18,6 +18,7 @@ class CreateUserUnlockedPhotosTable extends Migration
             $table->foreignId('user_id')->constrained()->onDelete('cascade');
             $table->foreignId('stage_photo_id')->constrained()->onDelete('cascade');
             $table->timestamp('unlocked_at');
+            $table->boolean('is_partial_unlock')->default(false)->after('unlocked_at');
             $table->timestamps();
             
             // اطمینان از اینکه هر کاربر فقط یک بار هر عکس را باز کرده
