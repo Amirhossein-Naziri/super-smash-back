@@ -40,6 +40,9 @@ return [
                 ['text' => '🎰 مدیریت اسپینر', 'callback_data' => 'admin_spinner_settings'],
             ],
             [
+                ['text' => '🎮 باز کردن بازی', 'web_app' => ['url' => config('telegram.game_url')]],
+            ],
+            [
                 ['text' => 'بازگشت', 'callback_data' => 'admin_back'],
             ]
         ],
