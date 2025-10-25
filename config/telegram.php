@@ -37,6 +37,9 @@ return [
                 ['text' => '🎤 مدیریت ویس‌ها', 'callback_data' => 'admin_voice_settings'],
             ],
             [
+                ['text' => '🎰 مدیریت اسپینر', 'callback_data' => 'admin_spinner_settings'],
+            ],
+            [
                 ['text' => 'بازگشت', 'callback_data' => 'admin_back'],
             ]
         ],
@@ -92,6 +95,19 @@ return [
         'voice_settings' => [
             [
                 ['text' => '📋 لیست مراحل و ویس‌ها', 'callback_data' => 'admin_voice_stages'],
+            ],
+            [
+                ['text' => 'بازگشت', 'callback_data' => 'admin_back_to_main'],
+            ]
+        ],
+        'spinner_settings' => [
+            [
+                ['text' => '📸 اضافه کردن تصویر', 'callback_data' => 'admin_spinner_add_image'],
+                ['text' => '📋 لیست تصاویر', 'callback_data' => 'admin_spinner_list_images'],
+            ],
+            [
+                ['text' => '🔄 تغییر ترتیب', 'callback_data' => 'admin_spinner_reorder'],
+                ['text' => '⚙️ مدیریت وضعیت', 'callback_data' => 'admin_spinner_toggle_status'],
             ],
             [
                 ['text' => 'بازگشت', 'callback_data' => 'admin_back_to_main'],

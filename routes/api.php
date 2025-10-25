@@ -10,6 +10,7 @@ use App\Http\Controllers\GameController;
 use App\Http\Controllers\RewardController;
 use App\Http\Controllers\StagePhotoController;
 use App\Http\Controllers\ReferralController;
+use App\Http\Controllers\SpinnerController;
 use Illuminate\Support\Facades\Response;
 
 /*
@@ -102,4 +103,26 @@ Route::prefix('admin')->group(function () {
     Route::get('/stages/{stageId}/users', [App\Http\Controllers\AdminController::class, 'getStageUsers']);
     Route::get('/stages/{stageId}/users/{userId}/recordings', [App\Http\Controllers\AdminController::class, 'getUserStageRecordings']);
     Route::get('/stages/{stageId}/users/{userId}/combined', [App\Http\Controllers\AdminController::class, 'getCombinedVoiceRecording']);
+});
+
+// Spinner routes
+Route::prefix('spinner')->group(function () {
+    // Public routes (no auth required)
+    Route::get('/images', [SpinnerController::class, 'getSpinnerImages']);
+    
+    // User routes (auth required)
+    Route::middleware('auth:sanctum')->group(function () {
+        Route::post('/spin', [SpinnerController::class, 'spin']);
+        Route::get('/status', [SpinnerController::class, 'getSpinStatus']);
+        Route::get('/history', [SpinnerController::class, 'getSpinHistory']);
+    });
+    
+    // Admin routes (auth required)
+    Route::middleware('auth:sanctum')->group(function () {
+        Route::get('/admin/images', [SpinnerController::class, 'getAllSpinnerImages']);
+        Route::post('/admin/images', [SpinnerController::class, 'addSpinnerImage']);
+        Route::delete('/admin/images/{id}', [SpinnerController::class, 'deleteSpinnerImage']);
+        Route::patch('/admin/images/{id}/toggle', [SpinnerController::class, 'toggleSpinnerImageStatus']);
+        Route::patch('/admin/images/order', [SpinnerController::class, 'updateImageOrder']);
+    });
 });

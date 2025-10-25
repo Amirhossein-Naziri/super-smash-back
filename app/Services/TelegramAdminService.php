@@ -7,6 +7,7 @@ use App\Models\Stage;
 use App\Models\StagePhoto;
 use App\Models\AdminState;
 use App\Models\Reward;
+use App\Models\SpinnerImage;
 use App\Traits\TelegramMessageTrait;
 use App\Services\PhotoBlurService;
 use Illuminate\Support\Facades\Storage;
@@ -333,6 +334,14 @@ class TelegramAdminService
             return;
         }
         
+        // Handle spinner image upload
+        if ($mode === 'spinner_image_upload') {
+            if ($waitingFor === 'image_name') {
+                $this->handleSpinnerImageName($chatId, $text);
+            }
+            return;
+        }
+        
         $this->sendMessage($chatId, "لطفاً از منوی ادمین استفاده کنید.");
     }
 
@@ -364,6 +373,12 @@ class TelegramAdminService
         // Handle reward creation photos
         if ($mode === 'reward_creation' && $waitingFor === 'image') {
             $this->handleRewardPhotoMessage($chatId, $message);
+            return;
+        }
+        
+        // Handle spinner image upload
+        if ($mode === 'spinner_image_upload' && $waitingFor === 'image_file') {
+            $this->handleSpinnerImageUpload($chatId, $message);
             return;
         }
     
@@ -1051,6 +1066,266 @@ class TelegramAdminService
     {
         $text = "🎤 تنظیمات ویس‌ها\n\nگزینه مورد نظر را انتخاب کنید:";
         $this->sendMessage($chatId, $text, config('telegram.keyboards.voice_settings'));
+    }
+
+    /**
+     * Send spinner settings menu
+     */
+    public function sendSpinnerSettingsMenu($chatId): void
+    {
+        $text = "🎰 مدیریت اسپینر\n\nگزینه مورد نظر را انتخاب کنید:";
+        $this->sendMessage($chatId, $text, config('telegram.keyboards.spinner_settings'));
+    }
+
+    /**
+     * Start adding spinner image
+     */
+    public function startAddingSpinnerImage($chatId): void
+    {
+        $this->setAdminState($chatId, [
+            'mode' => 'spinner_image_upload',
+            'waiting_for' => 'image_name'
+        ]);
+        
+        $text = "📸 اضافه کردن تصویر اسپینر\n\n";
+        $text .= "لطفاً نام تصویر را ارسال کنید:";
+        
+        $keyboard = [
+            [
+                ['text' => '❌ لغو', 'callback_data' => 'admin_spinner_settings']
+            ]
+        ];
+        
+        $this->sendMessage($chatId, $text, $keyboard);
+    }
+
+    /**
+     * Handle spinner image name input
+     */
+    public function handleSpinnerImageName($chatId, $imageName): void
+    {
+        $state = $this->getAdminState($chatId);
+        if (!$state || $state['mode'] !== 'spinner_image_upload') {
+            $this->sendMessage($chatId, "❌ خطا: حالت نامعتبر");
+            return;
+        }
+        
+        $this->setAdminState($chatId, [
+            'mode' => 'spinner_image_upload',
+            'waiting_for' => 'image_file',
+            'image_name' => $imageName
+        ]);
+        
+        $text = "📸 نام تصویر: {$imageName}\n\n";
+        $text .= "حالا تصویر را ارسال کنید:";
+        
+        $keyboard = [
+            [
+                ['text' => '❌ لغو', 'callback_data' => 'admin_spinner_settings']
+            ]
+        ];
+        
+        $this->sendMessage($chatId, $text, $keyboard);
+    }
+
+    /**
+     * Handle spinner image file upload
+     */
+    public function handleSpinnerImageUpload($chatId, $message): void
+    {
+        $state = $this->getAdminState($chatId);
+        if (!$state || $state['mode'] !== 'spinner_image_upload' || $state['waiting_for'] !== 'image_file') {
+            $this->sendMessage($chatId, "❌ خطا: حالت نامعتبر");
+            return;
+        }
+        
+        try {
+            $photo = $message->getPhoto();
+            if (!$photo || empty($photo)) {
+                $this->sendMessage($chatId, "❌ خطا: تصویر یافت نشد");
+                return;
+            }
+            
+            // Get the largest photo
+            $largestPhoto = end($photo);
+            $fileId = $largestPhoto->getFileId();
+            
+            // Download the file
+            $file = $this->telegram->getFile(['file_id' => $fileId]);
+            $fileUrl = "https://api.telegram.org/file/bot" . config('telegram.bot_token') . "/" . $file->getFilePath();
+            
+            // Download and save the image
+            $imageContent = file_get_contents($fileUrl);
+            $imageName = $state['image_name'] ?? 'spinner_image_' . time();
+            $fileName = 'spinner-images/' . $imageName . '_' . time() . '.jpg';
+            
+            Storage::disk('public')->put($fileName, $imageContent);
+            $imageUrl = Storage::url($fileName);
+            
+            // Create spinner image record
+            $spinnerImage = SpinnerImage::create([
+                'name' => $state['image_name'],
+                'image_path' => $fileName,
+                'image_url' => $imageUrl,
+                'is_active' => true,
+                'order' => SpinnerImage::max('order') + 1
+            ]);
+            
+            $this->clearAdminState($chatId);
+            
+            $text = "✅ تصویر اسپینر با موفقیت اضافه شد!\n\n";
+            $text .= "نام: {$spinnerImage->name}\n";
+            $text .= "ترتیب: {$spinnerImage->order}\n";
+            $text .= "وضعیت: فعال";
+            
+            $keyboard = [
+                [
+                    ['text' => '📋 لیست تصاویر', 'callback_data' => 'admin_spinner_list_images'],
+                    ['text' => '➕ تصویر جدید', 'callback_data' => 'admin_spinner_add_image']
+                ],
+                [
+                    ['text' => 'بازگشت', 'callback_data' => 'admin_spinner_settings']
+                ]
+            ];
+            
+            $this->sendMessage($chatId, $text, $keyboard);
+            
+        } catch (\Exception $e) {
+            \Log::error('Error uploading spinner image: ' . $e->getMessage());
+            $this->sendMessage($chatId, "❌ خطا در آپلود تصویر: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Show spinner images list
+     */
+    public function showSpinnerImagesList($chatId): void
+    {
+        $images = SpinnerImage::orderBy('order')->get();
+        
+        if ($images->isEmpty()) {
+            $text = "📋 لیست تصاویر اسپینر\n\nهیچ تصویری یافت نشد.";
+            $keyboard = [
+                [
+                    ['text' => '➕ اضافه کردن تصویر', 'callback_data' => 'admin_spinner_add_image']
+                ],
+                [
+                    ['text' => 'بازگشت', 'callback_data' => 'admin_spinner_settings']
+                ]
+            ];
+        } else {
+            $text = "📋 لیست تصاویر اسپینر\n\n";
+            foreach ($images as $index => $image) {
+                $status = $image->is_active ? "✅ فعال" : "❌ غیرفعال";
+                $text .= ($index + 1) . ". {$image->name}\n";
+                $text .= "   ترتیب: {$image->order} | {$status}\n\n";
+            }
+            
+            $keyboard = [
+                [
+                    ['text' => '➕ اضافه کردن تصویر', 'callback_data' => 'admin_spinner_add_image']
+                ],
+                [
+                    ['text' => '🔄 تغییر ترتیب', 'callback_data' => 'admin_spinner_reorder'],
+                    ['text' => '⚙️ مدیریت وضعیت', 'callback_data' => 'admin_spinner_toggle_status']
+                ],
+                [
+                    ['text' => 'بازگشت', 'callback_data' => 'admin_spinner_settings']
+                ]
+            ];
+        }
+        
+        $this->sendMessage($chatId, $text, $keyboard);
+    }
+
+    /**
+     * Show spinner reorder menu
+     */
+    public function showSpinnerReorderMenu($chatId): void
+    {
+        $images = SpinnerImage::orderBy('order')->get();
+        
+        if ($images->isEmpty()) {
+            $this->sendMessage($chatId, "❌ هیچ تصویری برای تغییر ترتیب یافت نشد.");
+            return;
+        }
+        
+        $text = "🔄 تغییر ترتیب تصاویر اسپینر\n\n";
+        $text .= "برای تغییر ترتیب، روی دکمه تصویر مورد نظر کلیک کنید:";
+        
+        $keyboard = [];
+        foreach ($images as $image) {
+            $keyboard[] = [
+                ['text' => "{$image->order}. {$image->name}", 'callback_data' => "spinner_reorder_{$image->id}"]
+            ];
+        }
+        
+        $keyboard[] = [
+            ['text' => 'بازگشت', 'callback_data' => 'admin_spinner_settings']
+        ];
+        
+        $this->sendMessage($chatId, $text, $keyboard);
+    }
+
+    /**
+     * Show spinner toggle status menu
+     */
+    public function showSpinnerToggleStatusMenu($chatId): void
+    {
+        $images = SpinnerImage::orderBy('order')->get();
+        
+        if ($images->isEmpty()) {
+            $this->sendMessage($chatId, "❌ هیچ تصویری برای تغییر وضعیت یافت نشد.");
+            return;
+        }
+        
+        $text = "⚙️ مدیریت وضعیت تصاویر اسپینر\n\n";
+        $text .= "برای تغییر وضعیت، روی دکمه تصویر مورد نظر کلیک کنید:";
+        
+        $keyboard = [];
+        foreach ($images as $image) {
+            $status = $image->is_active ? "✅ فعال" : "❌ غیرفعال";
+            $keyboard[] = [
+                ['text' => "{$status} {$image->name}", 'callback_data' => "spinner_toggle_{$image->id}"]
+            ];
+        }
+        
+        $keyboard[] = [
+            ['text' => 'بازگشت', 'callback_data' => 'admin_spinner_settings']
+        ];
+        
+        $this->sendMessage($chatId, $text, $keyboard);
+    }
+
+    /**
+     * Toggle spinner image status
+     */
+    public function toggleSpinnerImageStatus($chatId, $imageId): void
+    {
+        try {
+            $image = SpinnerImage::findOrFail($imageId);
+            $image->is_active = !$image->is_active;
+            $image->save();
+            
+            $status = $image->is_active ? "فعال" : "غیرفعال";
+            $text = "✅ وضعیت تصویر '{$image->name}' به '{$status}' تغییر کرد.";
+            
+            $keyboard = [
+                [
+                    ['text' => '📋 لیست تصاویر', 'callback_data' => 'admin_spinner_list_images'],
+                    ['text' => '⚙️ مدیریت وضعیت', 'callback_data' => 'admin_spinner_toggle_status']
+                ],
+                [
+                    ['text' => 'بازگشت', 'callback_data' => 'admin_spinner_settings']
+                ]
+            ];
+            
+            $this->sendMessage($chatId, $text, $keyboard);
+            
+        } catch (\Exception $e) {
+            \Log::error('Error toggling spinner image status: ' . $e->getMessage());
+            $this->sendMessage($chatId, "❌ خطا در تغییر وضعیت تصویر");
+        }
     }
 
     /**

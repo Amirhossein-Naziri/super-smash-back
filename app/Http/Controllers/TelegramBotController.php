@@ -177,6 +177,21 @@ class TelegramBotController extends Controller
             case 'admin_voice_stages':
                 $this->adminService->showVoiceStagesList($chatId);
                 break;
+            case 'admin_spinner_settings':
+                $this->adminService->sendSpinnerSettingsMenu($chatId);
+                break;
+            case 'admin_spinner_add_image':
+                $this->adminService->startAddingSpinnerImage($chatId);
+                break;
+            case 'admin_spinner_list_images':
+                $this->adminService->showSpinnerImagesList($chatId);
+                break;
+            case 'admin_spinner_reorder':
+                $this->adminService->showSpinnerReorderMenu($chatId);
+                break;
+            case 'admin_spinner_toggle_status':
+                $this->adminService->showSpinnerToggleStatusMenu($chatId);
+                break;
             default:
                 $this->handleDynamicCallback($chatId, $callbackData);
                 break;
@@ -214,6 +229,9 @@ class TelegramBotController extends Controller
                 break;
             case 'play_combined_voice':
                 $this->adminService->sendCombinedVoiceRecording($chatId, $parsed['stage_id'], $parsed['user_id']);
+                break;
+            case 'spinner_toggle':
+                $this->adminService->toggleSpinnerImageStatus($chatId, $parsed['image_id']);
                 break;
         }
     }
