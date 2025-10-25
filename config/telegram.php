@@ -12,9 +12,9 @@ return [
 
     'bot_token' => env('TELEGRAM_BOT_TOKEN', '8140283298:AAEiANouwoVgV2WKOIqsXEp-nQyV5ARUrlw'),
     
-    'webhook_url' => env('TELEGRAM_WEBHOOK_URL', 'https://api.daom.ir/api/telegram/webhook'),
+    'webhook_url' => env('TELEGRAM_WEBHOOK_URL', 'https://api.supersmash.ir/api/telegram/webhook'),
     
-    'game_url' => env('TELEGRAM_GAME_URL', 'https://daom.ir/game'),
+    'game_url' => env('TELEGRAM_GAME_URL', 'https://supersmash.ir/game'),
     
     'admin_ids' => env('ADMIN_IDS') ? explode(',', env('ADMIN_IDS')) : [],
     
