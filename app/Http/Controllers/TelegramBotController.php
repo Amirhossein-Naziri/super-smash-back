@@ -284,10 +284,48 @@ class TelegramBotController extends Controller
      */
     public function logError(Request $request)
     {
-        $error = $request->input('error');
-        $file = storage_path('logs/telegram-error.log');
-        file_put_contents($file, date('Y-m-d H:i:s') . " - " . $error . "\n", FILE_APPEND);
-        return response()->json(['success' => true]);
+        try {
+            $error = $request->input('error');
+            $type = $request->input('type', 'Unknown');
+            $timestamp = $request->input('timestamp', date('Y-m-d H:i:s'));
+            
+            $file = storage_path('logs/telegram-error.log');
+            
+            // Create directory if it doesn't exist
+            $dir = dirname($file);
+            if (!is_dir($dir)) {
+                mkdir($dir, 0755, true);
+            }
+            
+            // Format error log entry
+            $logEntry = sprintf(
+                "[%s] [%s] %s\n%s\n%s\n",
+                $timestamp,
+                $type,
+                str_repeat('-', 80),
+                $error,
+                str_repeat('=', 80)
+            );
+            
+            file_put_contents($file, $logEntry, FILE_APPEND);
+            
+            // Also log to Laravel log
+            \Log::error('Frontend Error', [
+                'type' => $type,
+                'error' => $error,
+                'timestamp' => $timestamp,
+            ]);
+            
+            return response()->json(['success' => true]);
+        } catch (\Exception $e) {
+            // If file writing fails, at least log to Laravel log
+            \Log::error('Error logging failed', [
+                'error' => $e->getMessage(),
+                'request' => $request->all(),
+            ]);
+            
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
     }
 
     /**
